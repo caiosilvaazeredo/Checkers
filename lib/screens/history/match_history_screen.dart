@@ -5,6 +5,7 @@ import '../../services/auth_service.dart';
 import '../../models/match_history_model.dart';
 import '../../models/game_model.dart';
 import '../../theme/app_theme.dart';
+import '../replay/replay_screen.dart';
 
 class MatchHistoryScreen extends StatefulWidget {
   const MatchHistoryScreen({Key? key}) : super(key: key);
@@ -250,11 +251,21 @@ class _MatchHistoryCard extends StatelessWidget {
     return Card(
       color: AppColors.surface,
       margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+      child: InkWell(
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => ReplayScreen(match: match),
+            ),
+          );
+        },
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
             // Header
             Row(
               children: [
@@ -351,7 +362,7 @@ class _MatchHistoryCard extends StatelessWidget {
 
             // Stats
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 _MatchStat(
                   icon: Icons.timer,
@@ -367,10 +378,16 @@ class _MatchHistoryCard extends StatelessWidget {
                       ? 'vs IA'
                       : (match.mode == GameMode.online ? 'Online' : 'Local'),
                 ),
+                const Icon(
+                  Icons.play_circle_outline,
+                  color: AppColors.accent,
+                  size: 24,
+                ),
               ],
             ),
           ],
         ),
+      ),
       ),
     );
   }
