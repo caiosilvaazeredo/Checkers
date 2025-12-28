@@ -46,6 +46,76 @@ Procure por erros específicos no console que aparecem antes do stack trace.
 
 ---
 
+## Erro: "ClientID not set" - Google Sign-In Web
+
+### Erro Completo
+```
+Assertion failed: appClientId != null
+"ClientID not set. Either set it on a <meta name="google-signin-client_id" content="CLIENT_ID" /> tag,
+or pass clientId when initializing GoogleSignIn"
+```
+
+### Causa
+O Google Sign-In na Web requer uma configuração adicional no arquivo `web/index.html`. Esta configuração não é necessária para Android/iOS, apenas para Web.
+
+### Solução
+
+1. **Obter o Web Client ID:**
+
+   **Opção A - Firebase Console:**
+   - Vá para [Firebase Console](https://console.firebase.google.com/)
+   - Selecione seu projeto
+   - Vá em **⚙️ Project Settings** (ícone de engrenagem)
+   - Role até **Your apps** e clique no app **Web**
+   - Copie o **Web client ID** (algo como: `123456789-abc123.apps.googleusercontent.com`)
+
+   **Opção B - Google Cloud Console:**
+   - Vá para [Google Cloud Console](https://console.cloud.google.com/)
+   - Selecione o projeto
+   - Menu → **APIs & Services** → **Credentials**
+   - Em "OAuth 2.0 Client IDs", copie o **Client ID** do tipo **Web application**
+
+2. **Adicionar ao `web/index.html`:**
+
+   Abra `web/index.html` e adicione dentro da tag `<head>`:
+
+   ```html
+   <meta name="google-signin-client_id" content="SEU_CLIENT_ID_AQUI.apps.googleusercontent.com">
+   ```
+
+   **Exemplo completo:**
+   ```html
+   <head>
+     <base href="$FLUTTER_BASE_HREF">
+     <meta charset="UTF-8">
+
+     <!-- Google Sign-In Client ID -->
+     <meta name="google-signin-client_id" content="123456789-abc123.apps.googleusercontent.com">
+
+     <title>Master Checkers AI</title>
+   </head>
+   ```
+
+3. **Limpar cache e recompilar:**
+   ```bash
+   flutter clean
+   flutter pub get
+   flutter run -d chrome
+   ```
+
+### Notas Importantes
+
+- ⚠️ Use o Client ID do tipo **Web application**, não o de Android ou iOS
+- ⚠️ O Client ID é diferente para cada plataforma
+- ✅ Você pode ver um arquivo de exemplo em `web/index.html.example`
+- ✅ Este erro só afeta a plataforma Web, não afeta Android/iOS
+
+### Verificação
+
+Após adicionar a meta tag, você NÃO deve mais ver o erro ao clicar em "Continue with Google" na versão Web do app.
+
+---
+
 ## Erro: "Failed to connect to Firebase"
 
 ### Verificações
