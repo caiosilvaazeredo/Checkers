@@ -20,13 +20,17 @@
   <meta content="IE=Edge" http-equiv="X-UA-Compatible">
   <meta name="description" content="Master Checkers AI - Play checkers against Gemini AI">
 
-  <!-- Google Sign-In Client ID for Web -->
-  <meta name="google-signin-client_id" content="303699574698-lg4sqj7mvrcm4ki3hhngon5v75ucth9c.apps.googleusercontent.com">
+  <!--
+    IMPORTANTE: Adicione seu Google Sign-In Client ID aqui!
+    Obtenha em: Firebase Console > Project Settings > Web App
+    ou Google Cloud Console > APIs & Services > Credentials
+  -->
+  <meta name="google-signin-client_id" content="YOUR_CLIENT_ID_HERE.apps.googleusercontent.com">
 
   <!-- iOS meta tags & icons -->
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black">
-  <meta name="apple-mobile-web-app-title" content="master_checkers">
+  <meta name="apple-mobile-web-app-title" content="Master Checkers">
   <link rel="apple-touch-icon" href="icons/Icon-192.png">
 
   <!-- Favicon -->

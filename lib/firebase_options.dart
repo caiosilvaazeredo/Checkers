@@ -14,28 +14,29 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyAMvHXsh2FIb9JKD4XfQCMDUd5b3w2TPsA',
-    appId: '1:953618224657:web:d8f8e8c8a8b8c8d8e8f8g8',
-    messagingSenderId: '953618224657',
+    apiKey: 'AIzaSyDDtiZHaVC9RL4U-lJdHg1eUIyiVhjfcr8',
+    appId: '1:303699574698:web:c191f1d26cd8db71b475d3',
+    messagingSenderId: '303699574698',
     projectId: 'checkers-27bb3',
     authDomain: 'checkers-27bb3.firebaseapp.com',
     databaseURL: 'https://checkers-27bb3-default-rtdb.firebaseio.com',
     storageBucket: 'checkers-27bb3.firebasestorage.app',
+    measurementId: 'G-JC3PVQLBE3',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyAMvHXsh2FIb9JKD4XfQCMDUd5b3w2TPsA',
-    appId: '1:953618224657:android:a1b2c3d4e5f6g7h8i9j0',
-    messagingSenderId: '953618224657',
+    apiKey: 'AIzaSyDBpEivWosFdIn-Z2Z4rJXLR4Zfn6xiJBg',
+    appId: '1:303699574698:android:fcb12928dffa2515b475d3',
+    messagingSenderId: '303699574698',
     projectId: 'checkers-27bb3',
     databaseURL: 'https://checkers-27bb3-default-rtdb.firebaseio.com',
     storageBucket: 'checkers-27bb3.firebasestorage.app',
   );
 
   static const FirebaseOptions ios = FirebaseOptions(
-    apiKey: 'AIzaSyAMvHXsh2FIb9JKD4XfQCMDUd5b3w2TPsA',
-    appId: '1:953618224657:ios:z9y8x7w6v5u4t3s2r1q0',
-    messagingSenderId: '953618224657',
+    apiKey: 'AIzaSyDBpEivWosFdIn-Z2Z4rJXLR4Zfn6xiJBg',
+    appId: '1:303699574698:ios:on8r1jd2ehg0al69f0da6trs1kmnkf79',
+    messagingSenderId: '303699574698',
     projectId: 'checkers-27bb3',
     databaseURL: 'https://checkers-27bb3-default-rtdb.firebaseio.com',
     storageBucket: 'checkers-27bb3.firebasestorage.app',
