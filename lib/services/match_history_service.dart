@@ -282,7 +282,7 @@ class MatchHistoryService extends ChangeNotifier {
       // Contar peças perdidas
       final piecesLost = history.player1Id == userId
           ? history.player1Captures
-          : history.player2Captures ?? 0;
+          : history.player2Captures;
 
       // Disparar verificação de conquistas
       await _achievementService.checkMatchAchievements(

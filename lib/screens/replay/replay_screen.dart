@@ -67,12 +67,6 @@ class _ReplayScreenState extends State<ReplayScreen> {
 
     if (from == null || to == null) return;
 
-    // Encontrar o movimento válido correspondente
-    final validMove = state.validMoves.firstWhere(
-      (m) => m.from == from && m.to == to,
-      orElse: () => Move(from: from, to: to),
-    );
-
     // Simular seleção e movimento
     game.selectSquare(from);
     game.selectSquare(to);

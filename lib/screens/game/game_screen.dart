@@ -253,62 +253,62 @@ class _GameScreenState extends State<GameScreen> {
                 ),
               ),
             ),
-              
-              // AI Explanation
-              if (game.aiExplanation != null && state.mode == GameMode.ai)
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  margin: const EdgeInsets.symmetric(horizontal: 16),
-                  decoration: BoxDecoration(
-                    color: AppColors.surface,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Row(
-                    children: [
-                      const Icon(Icons.psychology, color: AppColors.accent),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          game.aiExplanation!,
-                          style: const TextStyle(color: AppColors.textSecondary),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              
-              // Bottom player info
-              _PlayerBar(
-                name: 'You',
-                isActive: state.turn == PlayerColor.red,
-                color: PlayerColor.red,
-              ),
-              
-              // Move history
+
+            // AI Explanation
+            if (game.aiExplanation != null && state.mode == GameMode.ai)
               Container(
-                height: 50,
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: ListView.builder(
-                  scrollDirection: Axis.horizontal,
-                  itemCount: state.history.length,
-                  itemBuilder: (context, i) => Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: Chip(
-                      label: Text(
-                        '${(i ~/ 2) + 1}. ${state.history[i]}',
-                        style: const TextStyle(fontSize: 12),
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.symmetric(horizontal: 16),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.psychology, color: AppColors.accent),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        game.aiExplanation!,
+                        style: const TextStyle(color: AppColors.textSecondary),
                       ),
-                      backgroundColor: AppColors.surface,
                     ),
+                  ],
+                ),
+              ),
+
+            // Bottom player info
+            _PlayerBar(
+              name: 'You',
+              isActive: state.turn == PlayerColor.red,
+              color: PlayerColor.red,
+            ),
+
+            // Move history
+            Container(
+              height: 50,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: state.history.length,
+                itemBuilder: (context, i) => Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: Chip(
+                    label: Text(
+                      '${(i ~/ 2) + 1}. ${state.history[i]}',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                    backgroundColor: AppColors.surface,
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
-              
-              // Winner dialog
-              if (state.winner != null)
-                _buildWinnerOverlay(context, state.winner!),
-            ],
+            ),
+            const SizedBox(height: 16),
+
+            // Winner dialog
+            if (state.winner != null)
+              _buildWinnerOverlay(context, state.winner!),
+          ],
           );
         },
       ),
