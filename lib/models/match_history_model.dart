@@ -52,7 +52,7 @@ class MatchHistory {
   });
 
   bool isWinner(String userId) => winnerId == userId;
-  bool isDraw => winnerId == null && endReason == 'draw';
+  bool get isDraw => winnerId == null && endReason == 'draw';
 
   Map<String, dynamic> toMap() => {
     'matchId': matchId,

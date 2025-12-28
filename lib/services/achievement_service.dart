@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_database/firebase_database.dart';
 import '../models/achievement_model.dart';
+import '../models/notification_model.dart';
 import 'notification_service.dart';
 
 class AchievementService extends ChangeNotifier {
