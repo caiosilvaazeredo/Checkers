@@ -311,8 +311,7 @@ class _GameScreenState extends State<GameScreen> {
           ],
           );
         },
-      ),
-    );
+      );
   }
 
   Widget _buildWinnerOverlay(BuildContext context, PlayerColor winner) {
