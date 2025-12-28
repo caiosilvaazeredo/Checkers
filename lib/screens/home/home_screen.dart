@@ -9,6 +9,7 @@ import '../friends/friends_screen.dart';
 import '../leaderboard/leaderboard_screen.dart';
 import '../profile/profile_screen.dart';
 import '../matchmaking/matchmaking_screen.dart';
+import '../history/match_history_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -133,6 +134,21 @@ class HomeScreen extends StatelessWidget {
                             onTap: () => Navigator.push(
                               context,
                               MaterialPageRoute(builder: (_) => const LeaderboardScreen()),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _SmallMenuButton(
+                            icon: Icons.history,
+                            title: 'Histórico',
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const MatchHistoryScreen()),
                             ),
                           ),
                         ),

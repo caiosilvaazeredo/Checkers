@@ -5,6 +5,7 @@ import 'package:uuid/uuid.dart';
 import '../models/online_match_model.dart';
 import '../models/user_model.dart';
 import '../models/game_model.dart';
+import '../models/chat_message_model.dart';
 
 class MatchmakingService extends ChangeNotifier {
   final FirebaseDatabase _db = FirebaseDatabase.instance;
@@ -436,6 +437,79 @@ class MatchmakingService extends ChangeNotifier {
   void clearError() {
     _error = null;
     notifyListeners();
+  }
+
+  // ========== SISTEMA DE CHAT ==========
+
+  // Enviar mensagem de chat
+  Future<bool> sendChatMessage({
+    required String matchId,
+    required String senderId,
+    required String senderUsername,
+    required String message,
+  }) async {
+    try {
+      if (message.trim().isEmpty) return false;
+
+      final messageId = _uuid.v4();
+      final chatMessage = ChatMessage(
+        messageId: messageId,
+        senderId: senderId,
+        senderUsername: senderUsername,
+        message: message.trim(),
+        timestamp: DateTime.now(),
+      );
+
+      await _db.ref('match_chat/$matchId/$messageId').set(chatMessage.toMap());
+      return true;
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  // Stream de mensagens de chat
+  Stream<List<ChatMessage>> getChatMessages(String matchId) {
+    return _db
+        .ref('match_chat/$matchId')
+        .orderByChild('timestamp')
+        .onValue
+        .map((event) {
+      if (!event.snapshot.exists) return <ChatMessage>[];
+
+      final messagesMap = Map<String, dynamic>.from(event.snapshot.value as Map);
+      final messages = <ChatMessage>[];
+
+      messagesMap.forEach((key, value) {
+        final messageData = Map<String, dynamic>.from(value);
+        messages.add(ChatMessage.fromMap(messageData));
+      });
+
+      // Ordenar por timestamp
+      messages.sort((a, b) => a.timestamp.compareTo(b.timestamp));
+      return messages;
+    });
+  }
+
+  // Marcar mensagens como lidas
+  Future<void> markMessagesAsRead(String matchId, String userId) async {
+    try {
+      final snapshot = await _db.ref('match_chat/$matchId').get();
+      if (!snapshot.exists) return;
+
+      final messagesMap = Map<String, dynamic>.from(snapshot.value as Map);
+
+      for (final entry in messagesMap.entries) {
+        final messageData = Map<String, dynamic>.from(entry.value);
+        if (messageData['senderId'] != userId && !(messageData['isRead'] ?? false)) {
+          await _db.ref('match_chat/$matchId/${entry.key}').update({'isRead': true});
+        }
+      }
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+    }
   }
 
   @override

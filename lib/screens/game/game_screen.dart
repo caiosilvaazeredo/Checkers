@@ -7,6 +7,7 @@ import '../../services/matchmaking_service.dart';
 import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/checkers_board.dart';
+import '../../widgets/chat_widget.dart';
 
 class GameScreen extends StatefulWidget {
   final GameMode mode;
@@ -70,12 +71,32 @@ class _GameScreenState extends State<GameScreen> {
     );
   }
 
+  void _openChat() {
+    if (widget.onlineMatchId == null) return;
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      isScrollControlled: true,
+      builder: (context) => SizedBox(
+        height: MediaQuery.of(context).size.height * 0.7,
+        child: ChatWidget(matchId: widget.onlineMatchId!),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Master Checkers'),
         actions: [
+          if (widget.mode == GameMode.online && widget.onlineMatchId != null)
+            IconButton(
+              icon: const Icon(Icons.chat_bubble_outline),
+              onPressed: _openChat,
+              tooltip: 'Chat',
+            ),
           IconButton(
             icon: const Icon(Icons.flag),
             onPressed: () => _showResignDialog(context),
@@ -85,6 +106,13 @@ class _GameScreenState extends State<GameScreen> {
       body: widget.mode == GameMode.online
           ? _buildOnlineGameBody()
           : _buildLocalGameBody(),
+      floatingActionButton: widget.mode == GameMode.online && widget.onlineMatchId != null
+          ? FloatingActionButton(
+              onPressed: _openChat,
+              backgroundColor: AppColors.accent,
+              child: const Icon(Icons.chat),
+            )
+          : null,
     );
   }
 
