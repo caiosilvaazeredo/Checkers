@@ -8,6 +8,8 @@ import 'services/friend_service.dart';
 import 'services/leaderboard_service.dart';
 import 'services/matchmaking_service.dart';
 import 'services/match_history_service.dart';
+import 'services/notification_service.dart';
+import 'services/achievement_service.dart';
 import 'screens/auth/auth_screen.dart';
 import 'screens/home/home_screen.dart';
 import 'theme/app_theme.dart';
@@ -30,7 +32,17 @@ class MasterCheckersApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => FriendService()),
         ChangeNotifierProvider(create: (_) => LeaderboardService()),
         ChangeNotifierProvider(create: (_) => MatchmakingService()),
-        ChangeNotifierProvider(create: (_) => MatchHistoryService()),
+        ChangeNotifierProvider(create: (_) => NotificationService()),
+        ChangeNotifierProxyProvider<NotificationService, AchievementService>(
+          create: (context) => AchievementService(context.read<NotificationService>()),
+          update: (context, notificationService, previous) =>
+              previous ?? AchievementService(notificationService),
+        ),
+        ChangeNotifierProxyProvider<AchievementService, MatchHistoryService>(
+          create: (context) => MatchHistoryService(context.read<AchievementService>()),
+          update: (context, achievementService, previous) =>
+              previous ?? MatchHistoryService(achievementService),
+        ),
       ],
       child: MaterialApp(
         title: 'Master Checkers AI',

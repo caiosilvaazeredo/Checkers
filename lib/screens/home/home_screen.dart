@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../models/game_model.dart';
 import '../../services/auth_service.dart';
 import '../../services/game_service.dart';
+import '../../services/notification_service.dart';
 import '../../theme/app_theme.dart';
 import '../game/game_screen.dart';
 import '../friends/friends_screen.dart';
@@ -10,6 +11,9 @@ import '../leaderboard/leaderboard_screen.dart';
 import '../profile/profile_screen.dart';
 import '../matchmaking/matchmaking_screen.dart';
 import '../history/match_history_screen.dart';
+import '../notifications/notifications_screen.dart';
+import '../achievements/achievements_screen.dart';
+import '../spectator/spectator_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -62,23 +66,77 @@ class HomeScreen extends StatelessWidget {
                       ),
                     ],
                   ),
-                  GestureDetector(
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const ProfileScreen()),
-                    ),
-                    child: CircleAvatar(
-                      radius: 24,
-                      backgroundColor: AppColors.accent,
-                      child: Text(
-                        (user?.username ?? 'P')[0].toUpperCase(),
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 20,
+                  Row(
+                    children: [
+                      // Notificações
+                      Consumer<NotificationService>(
+                        builder: (context, notificationService, _) {
+                          final unreadCount = notificationService.notifications
+                              .where((n) => !n.isRead)
+                              .length;
+
+                          return Stack(
+                            children: [
+                              IconButton(
+                                icon: const Icon(Icons.notifications_outlined),
+                                onPressed: () {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => const NotificationsScreen(),
+                                    ),
+                                  );
+                                },
+                              ),
+                              if (unreadCount > 0)
+                                Positioned(
+                                  right: 8,
+                                  top: 8,
+                                  child: Container(
+                                    padding: const EdgeInsets.all(4),
+                                    decoration: const BoxDecoration(
+                                      color: Colors.red,
+                                      shape: BoxShape.circle,
+                                    ),
+                                    constraints: const BoxConstraints(
+                                      minWidth: 16,
+                                      minHeight: 16,
+                                    ),
+                                    child: Text(
+                                      unreadCount > 9 ? '9+' : '$unreadCount',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          );
+                        },
+                      ),
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const ProfileScreen()),
+                        ),
+                        child: CircleAvatar(
+                          radius: 24,
+                          backgroundColor: AppColors.accent,
+                          child: Text(
+                            (user?.username ?? 'P')[0].toUpperCase(),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 20,
+                            ),
+                          ),
                         ),
                       ),
-                    ),
+                    ],
                   ),
                 ],
               ),
@@ -149,6 +207,32 @@ class HomeScreen extends StatelessWidget {
                             onTap: () => Navigator.push(
                               context,
                               MaterialPageRoute(builder: (_) => const MatchHistoryScreen()),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: _SmallMenuButton(
+                            icon: Icons.emoji_events,
+                            title: 'Conquistas',
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const AchievementsScreen()),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 16),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _SmallMenuButton(
+                            icon: Icons.live_tv,
+                            title: 'Partidas Ao Vivo',
+                            onTap: () => Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (_) => const SpectatorScreen()),
                             ),
                           ),
                         ),

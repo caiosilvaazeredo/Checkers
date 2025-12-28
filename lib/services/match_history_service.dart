@@ -3,9 +3,13 @@ import 'package:firebase_database/firebase_database.dart';
 import '../models/match_history_model.dart';
 import '../models/online_match_model.dart';
 import '../models/game_model.dart';
+import 'achievement_service.dart';
 
 class MatchHistoryService extends ChangeNotifier {
   final FirebaseDatabase _db = FirebaseDatabase.instance;
+  final AchievementService _achievementService;
+
+  MatchHistoryService(this._achievementService);
 
   List<MatchHistory> _userHistory = [];
   bool _isLoading = false;
@@ -59,6 +63,25 @@ class MatchHistoryService extends ChangeNotifier {
       await _db.ref('global_match_history/${match.matchId}')
           .set(history.toMap());
 
+      // Disparar verificação de conquistas para ambos os jogadores
+      if (match.redPlayer != null) {
+        await _checkAchievementsForPlayer(
+          userId: match.redPlayer!.uid,
+          won: match.winner == match.redPlayer!.uid,
+          duration: duration,
+          history: history,
+        );
+      }
+
+      if (match.whitePlayer != null) {
+        await _checkAchievementsForPlayer(
+          userId: match.whitePlayer!.uid,
+          won: match.winner == match.whitePlayer!.uid,
+          duration: duration,
+          history: history,
+        );
+      }
+
     } catch (e) {
       _error = e.toString();
       notifyListeners();
@@ -104,6 +127,14 @@ class MatchHistoryService extends ChangeNotifier {
       );
 
       await _db.ref('match_history/$userId/$matchId').set(history.toMap());
+
+      // Disparar verificação de conquistas
+      await _checkAchievementsForPlayer(
+        userId: userId,
+        won: winner == PlayerColor.red,
+        duration: duration,
+        history: history,
+      );
     } catch (e) {
       _error = e.toString();
       notifyListeners();
@@ -223,5 +254,47 @@ class MatchHistoryService extends ChangeNotifier {
   void clearError() {
     _error = null;
     notifyListeners();
+  }
+
+  // Verificar conquistas para um jogador após partida
+  Future<void> _checkAchievementsForPlayer({
+    required String userId,
+    required bool won,
+    required Duration duration,
+    required MatchHistory history,
+  }) async {
+    try {
+      // Obter estatísticas atualizadas do jogador
+      await loadUserHistory(userId);
+      final stats = getUserStats(userId);
+      final gamesPlayed = stats['totalGames'] as int;
+
+      // Calcular sequência de vitórias
+      int consecutiveWins = 0;
+      for (final match in _userHistory.reversed) {
+        if (match.isWinner(userId)) {
+          consecutiveWins++;
+        } else {
+          break;
+        }
+      }
+
+      // Contar peças perdidas
+      final piecesLost = history.player1Id == userId
+          ? history.player1Captures
+          : history.player2Captures ?? 0;
+
+      // Disparar verificação de conquistas
+      await _achievementService.checkMatchAchievements(
+        userId: userId,
+        won: won,
+        gamesPlayed: gamesPlayed,
+        consecutiveWins: consecutiveWins,
+        matchDuration: duration,
+        piecesLost: piecesLost,
+      );
+    } catch (e) {
+      debugPrint('Erro ao verificar conquistas: $e');
+    }
   }
 }
