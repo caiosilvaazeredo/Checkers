@@ -8,19 +8,29 @@ import '../game/game_screen.dart';
 import '../friends/friends_screen.dart';
 import '../leaderboard/leaderboard_screen.dart';
 import '../profile/profile_screen.dart';
+import '../matchmaking/matchmaking_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
   void _startGame(BuildContext context, GameMode mode) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: AppColors.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => _GameSettingsSheet(mode: mode),
-    );
+    if (mode == GameMode.online) {
+      // Navegar para tela de matchmaking
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => const MatchmakingScreen()),
+      );
+    } else {
+      // Abrir modal de configurações para AI e PvP
+      showModalBottomSheet(
+        context: context,
+        backgroundColor: AppColors.surface,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        builder: (ctx) => _GameSettingsSheet(mode: mode),
+      );
+    }
   }
 
   @override
@@ -299,11 +309,15 @@ class _GameSettingsSheetState extends State<_GameSettingsSheet> {
               onPressed: () {
                 final game = context.read<GameService>();
                 game.setDifficulty(_difficulty);
-                game.startGame(_variant, widget.mode);
                 Navigator.pop(context);
                 Navigator.push(
                   context,
-                  MaterialPageRoute(builder: (_) => const GameScreen()),
+                  MaterialPageRoute(
+                    builder: (_) => GameScreen(
+                      mode: widget.mode,
+                      variant: _variant,
+                    ),
+                  ),
                 );
               },
               child: const Text('Start Game'),

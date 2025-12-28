@@ -1,31 +1,110 @@
 import 'package:flutter/material.dart';
 import '../models/game_model.dart';
+import '../models/online_match_model.dart';
 
 class GameService extends ChangeNotifier {
   GameState? _gameState;
   bool _isAiThinking = false;
   String? _aiExplanation;
   String _aiDifficulty = 'hard';
-  
+  String? _onlineMatchId;
+  String? _myPlayerId;
+
   GameState? get gameState => _gameState;
   bool get isAiThinking => _isAiThinking;
   String? get aiExplanation => _aiExplanation;
   String get aiDifficulty => _aiDifficulty;
+  String? get onlineMatchId => _onlineMatchId;
+  String? get myPlayerId => _myPlayerId;
   
   void setDifficulty(String difficulty) {
     _aiDifficulty = difficulty;
     notifyListeners();
   }
   
-  void startGame(GameVariant variant, GameMode mode) {
+  void startGame(GameVariant variant, GameMode mode, {String? matchId, String? playerId}) {
     _gameState = GameState(
       board: _createInitialBoard(),
       variant: variant,
       mode: mode,
     );
+    _onlineMatchId = matchId;
+    _myPlayerId = playerId;
     _calculateValidMoves();
     _aiExplanation = null;
     notifyListeners();
+  }
+
+  // Carregar jogo online a partir de OnlineMatch
+  void loadOnlineGame(OnlineMatch match, String myPlayerId) {
+    _onlineMatchId = match.matchId;
+    _myPlayerId = myPlayerId;
+
+    final board = _convertOnlineBoardToGameBoard(match.board);
+
+    _gameState = GameState(
+      board: board,
+      variant: match.variant,
+      mode: GameMode.online,
+      turn: match.currentTurn,
+      history: match.moveHistory,
+      winner: match.winner != null ? _getPlayerColorFromUid(match, match.winner!) : null,
+    );
+
+    _calculateValidMoves();
+    notifyListeners();
+  }
+
+  // Converter board online (String) para board do jogo (Piece)
+  List<List<Piece?>> _convertOnlineBoardToGameBoard(List<List<String?>> onlineBoard) {
+    return onlineBoard.map((row) {
+      return row.map((cell) {
+        if (cell == null) return null;
+        final parts = cell.split('-');
+        final color = parts[0] == 'red' ? PlayerColor.red : PlayerColor.white;
+        final type = parts[1] == 'king' ? PieceType.king : PieceType.man;
+        return Piece(color: color, type: type);
+      }).toList();
+    }).toList();
+  }
+
+  // Converter board do jogo (Piece) para board online (String)
+  List<List<String?>> _convertGameBoardToOnlineBoard(List<List<Piece?>> gameBoard) {
+    return gameBoard.map((row) {
+      return row.map((cell) {
+        if (cell == null) return null;
+        final colorStr = cell.color == PlayerColor.red ? 'red' : 'white';
+        final typeStr = cell.type == PieceType.king ? 'king' : 'man';
+        return '$colorStr-$typeStr';
+      }).toList();
+    }).toList();
+  }
+
+  PlayerColor? _getPlayerColorFromUid(OnlineMatch match, String uid) {
+    if (match.redPlayer?.uid == uid) return PlayerColor.red;
+    if (match.whitePlayer?.uid == uid) return PlayerColor.white;
+    return null;
+  }
+
+  PlayerColor? getMyColor(OnlineMatch match) {
+    if (_myPlayerId == null) return null;
+    return _getPlayerColorFromUid(match, _myPlayerId!);
+  }
+
+  bool isMyTurn(OnlineMatch match) {
+    if (_myPlayerId == null || _gameState == null) return false;
+    final myColor = getMyColor(match);
+    return myColor == _gameState!.turn;
+  }
+
+  // Obter dados do movimento para sincronizar online
+  Map<String, dynamic>? getOnlineMoveData() {
+    if (_gameState == null) return null;
+    return {
+      'board': _convertGameBoardToOnlineBoard(_gameState!.board),
+      'currentTurn': _gameState!.turn,
+      'winner': _gameState!.winner,
+    };
   }
   
   List<List<Piece?>> _createInitialBoard() {
@@ -184,11 +263,11 @@ class GameService extends ChangeNotifier {
   
   bool _isValid(int r, int c) => r >= 0 && r < 8 && c >= 0 && c < 8;
   
-  void selectSquare(Position pos) {
+  void selectSquare(Position pos, {Function(Move)? onOnlineMove}) {
     if (_gameState == null || _gameState!.winner != null || _isAiThinking) return;
-    
+
     final piece = _gameState!.board[pos.row][pos.col];
-    
+
     if (piece != null && piece.color == _gameState!.turn) {
       if (_gameState!.mustCaptureFrom != null) {
         if (pos == _gameState!.mustCaptureFrom) {
@@ -201,14 +280,18 @@ class GameService extends ChangeNotifier {
       notifyListeners();
       return;
     }
-    
+
     if (piece == null && _gameState!.selectedPos != null) {
       final move = _gameState!.validMoves.where((m) =>
         m.from == _gameState!.selectedPos && m.to == pos
       ).firstOrNull;
-      
+
       if (move != null) {
         _executeMove(move);
+        // Se for modo online, notificar o callback
+        if (_gameState!.mode == GameMode.online && onOnlineMove != null) {
+          onOnlineMove(move);
+        }
       }
     }
   }
@@ -346,6 +429,8 @@ class GameService extends ChangeNotifier {
   void resetGame() {
     _gameState = null;
     _aiExplanation = null;
+    _onlineMatchId = null;
+    _myPlayerId = null;
     notifyListeners();
   }
 }

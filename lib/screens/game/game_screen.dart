@@ -1,12 +1,74 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/game_model.dart';
+import '../../models/online_match_model.dart';
 import '../../services/game_service.dart';
+import '../../services/matchmaking_service.dart';
+import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/checkers_board.dart';
 
-class GameScreen extends StatelessWidget {
-  const GameScreen({super.key});
+class GameScreen extends StatefulWidget {
+  final GameMode mode;
+  final GameVariant variant;
+  final String? onlineMatchId;
+
+  const GameScreen({
+    super.key,
+    required this.mode,
+    this.variant = GameVariant.american,
+    this.onlineMatchId,
+  });
+
+  @override
+  State<GameScreen> createState() => _GameScreenState();
+}
+
+class _GameScreenState extends State<GameScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _initializeGame();
+    });
+  }
+
+  void _initializeGame() {
+    final game = context.read<GameService>();
+
+    if (widget.mode == GameMode.online && widget.onlineMatchId != null) {
+      // Carregar partida online
+      final matchmaking = context.read<MatchmakingService>();
+      matchmaking.loadMatch(widget.onlineMatchId!);
+    } else {
+      // Iniciar jogo local (AI ou PvP)
+      game.startGame(widget.variant, widget.mode);
+    }
+  }
+
+  void _handleOnlineMove(Move move) async {
+    final matchmaking = context.read<MatchmakingService>();
+    final game = context.read<GameService>();
+    final match = matchmaking.currentMatch;
+
+    if (match == null || game.gameState == null) return;
+
+    final moveData = game.getOnlineMoveData();
+    if (moveData == null) return;
+
+    await matchmaking.makeMove(
+      matchId: match.matchId,
+      from: move.from,
+      to: move.to,
+      isCapture: move.isCapture,
+      capturedPos: move.capturedPos,
+      newBoard: moveData['board'] as List<List<String?>>,
+      nextTurn: moveData['currentTurn'] as PlayerColor,
+      winner: moveData['winner'] != null
+          ? match.getPlayerUid(moveData['winner'] as PlayerColor)
+          : null,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -20,32 +82,149 @@ class GameScreen extends StatelessWidget {
           ),
         ],
       ),
-      body: Consumer<GameService>(
-        builder: (context, game, _) {
-          final state = game.gameState;
-          if (state == null) {
-            return const Center(child: Text('No game in progress'));
-          }
+      body: widget.mode == GameMode.online
+          ? _buildOnlineGameBody()
+          : _buildLocalGameBody(),
+    );
+  }
 
-          return Column(
-            children: [
-              // Top player info
-              _PlayerBar(
-                name: state.mode == GameMode.ai ? 'Gemini AI' : 'White',
-                isActive: state.turn == PlayerColor.white,
-                color: PlayerColor.white,
+  Widget _buildOnlineGameBody() {
+    return Consumer2<GameService, MatchmakingService>(
+      builder: (context, game, matchmaking, _) {
+        final match = matchmaking.currentMatch;
+        final auth = context.read<AuthService>();
+
+        if (match == null || auth.currentUser == null) {
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        // Carregar o jogo se ainda não foi carregado
+        if (game.gameState == null || game.onlineMatchId != match.matchId) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            game.loadOnlineGame(match, auth.currentUser!.uid);
+          });
+          return const Center(child: CircularProgressIndicator());
+        }
+
+        final state = game.gameState!;
+        final myColor = game.getMyColor(match);
+        final isMyTurn = game.isMyTurn(match);
+
+        final opponent = myColor == PlayerColor.red
+            ? match.whitePlayer
+            : match.redPlayer;
+        final me = myColor == PlayerColor.red
+            ? match.redPlayer
+            : match.whitePlayer;
+
+        return Column(
+          children: [
+            // Opponent info
+            _PlayerBar(
+              name: opponent?.username ?? 'Oponente',
+              rating: opponent?.rating,
+              isActive: state.turn != myColor,
+              color: opponent?.color ?? PlayerColor.white,
+            ),
+
+            // Board
+            Expanded(
+              child: Center(
+                child: CheckersBoard(
+                  gameState: state,
+                  onSquareTap: (pos) {
+                    if (isMyTurn && !match.isCompleted) {
+                      game.selectSquare(pos, onOnlineMove: _handleOnlineMove);
+                    }
+                  },
+                  isThinking: false,
+                ),
               ),
-              
-              // Board
-              Expanded(
-                child: Center(
-                  child: CheckersBoard(
-                    gameState: state,
-                    onSquareTap: game.selectSquare,
-                    isThinking: game.isAiThinking,
+            ),
+
+            // Turn indicator
+            if (!match.isCompleted)
+              Container(
+                padding: const EdgeInsets.all(12),
+                margin: const EdgeInsets.symmetric(horizontal: 16),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  isMyTurn ? 'Sua vez!' : 'Aguardando oponente...',
+                  style: TextStyle(
+                    color: isMyTurn ? AppColors.accent : AppColors.textSecondary,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
+
+            // My info
+            _PlayerBar(
+              name: me?.username ?? 'Você',
+              rating: me?.rating,
+              isActive: state.turn == myColor,
+              color: me?.color ?? PlayerColor.red,
+            ),
+
+            // Move history
+            Container(
+              height: 50,
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: ListView.builder(
+                scrollDirection: Axis.horizontal,
+                itemCount: state.history.length,
+                itemBuilder: (context, i) => Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: Chip(
+                    label: Text(
+                      '${(i ~/ 2) + 1}. ${state.history[i]}',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                    backgroundColor: AppColors.surface,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+
+            // Winner overlay
+            if (state.winner != null)
+              _buildOnlineWinnerOverlay(context, state.winner!, match, myColor),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _buildLocalGameBody() {
+    return Consumer<GameService>(
+      builder: (context, game, _) {
+        final state = game.gameState;
+        if (state == null) {
+          return const Center(child: Text('No game in progress'));
+        }
+
+        return Column(
+          children: [
+            // Top player info
+            _PlayerBar(
+              name: state.mode == GameMode.ai ? 'Gemini AI' : 'White',
+              isActive: state.turn == PlayerColor.white,
+              color: PlayerColor.white,
+            ),
+
+            // Board
+            Expanded(
+              child: Center(
+                child: CheckersBoard(
+                  gameState: state,
+                  onSquareTap: game.selectSquare,
+                  isThinking: game.isAiThinking,
+                ),
+              ),
+            ),
               
               // AI Explanation
               if (game.aiExplanation != null && state.mode == GameMode.ai)
@@ -144,24 +323,81 @@ class GameScreen extends StatelessWidget {
     );
   }
 
+  Widget _buildOnlineWinnerOverlay(
+    BuildContext context,
+    PlayerColor winner,
+    OnlineMatch match,
+    PlayerColor? myColor,
+  ) {
+    final didIWin = winner == myColor;
+    final winnerName = winner == PlayerColor.red
+        ? match.redPlayer?.username
+        : match.whitePlayer?.username;
+
+    return Container(
+      padding: const EdgeInsets.all(24),
+      margin: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: didIWin ? AppColors.accent : AppColors.pieceRed,
+          width: 2,
+        ),
+      ),
+      child: Column(
+        children: [
+          Text(
+            didIWin ? '🎉 Você Venceu!' : '${winnerName ?? "Oponente"} Venceu',
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              ElevatedButton(
+                onPressed: () {
+                  context.read<GameService>().resetGame();
+                  Navigator.pop(context);
+                },
+                child: const Text('Voltar ao Menu'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showResignDialog(BuildContext context) {
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Resign?'),
-        content: const Text('Are you sure you want to resign this game?'),
+        title: const Text('Desistir?'),
+        content: const Text('Tem certeza que deseja desistir desta partida?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
+            child: const Text('Cancelar'),
           ),
           ElevatedButton(
             onPressed: () {
-              context.read<GameService>().resign();
+              if (widget.mode == GameMode.online && widget.onlineMatchId != null) {
+                final auth = context.read<AuthService>();
+                if (auth.currentUser != null) {
+                  context.read<MatchmakingService>().resignMatch(
+                        widget.onlineMatchId!,
+                        auth.currentUser!.uid,
+                      );
+                }
+              } else {
+                context.read<GameService>().resign();
+              }
               Navigator.pop(ctx);
+              Navigator.pop(context);
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-            child: const Text('Resign'),
+            child: const Text('Desistir'),
           ),
         ],
       ),
@@ -173,11 +409,13 @@ class _PlayerBar extends StatelessWidget {
   final String name;
   final bool isActive;
   final PlayerColor color;
+  final int? rating;
 
   const _PlayerBar({
     required this.name,
     required this.isActive,
     required this.color,
+    this.rating,
   });
 
   @override
@@ -205,9 +443,24 @@ class _PlayerBar extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 12),
-          Text(
-            name,
-            style: const TextStyle(fontWeight: FontWeight.bold),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                if (rating != null)
+                  Text(
+                    'Rating: $rating',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+              ],
+            ),
           ),
           if (isActive) ...[
             const SizedBox(width: 8),
