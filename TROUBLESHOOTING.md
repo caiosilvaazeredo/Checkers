@@ -116,6 +116,69 @@ Após adicionar a meta tag, você NÃO deve mais ver o erro ao clicar em "Contin
 
 ---
 
+## Erro: "403 Forbidden" - People API
+
+### Erro Completo
+```
+GET https://content-people.googleapis.com/v1/people/me 403 (Forbidden)
+```
+
+### Causa
+O Google Sign-In consegue obter o token de acesso, mas ao tentar buscar os dados do perfil do usuário (nome, email, foto), a API do Google People não está habilitada no projeto.
+
+### Sintomas
+- Popup do Google Sign-In abre normalmente
+- Token de acesso é obtido com sucesso
+- Erro 403 ao tentar buscar dados do perfil
+- Login não completa
+
+### Solução
+
+**1. Acessar Google Cloud Console:**
+   - Vá para [Google Cloud Console](https://console.cloud.google.com/)
+   - Selecione o projeto (ex: checkers-27bb3)
+
+**2. Habilitar People API:**
+
+   **Opção A - Busca direta:**
+   1. No topo da página, clique na barra de pesquisa
+   2. Digite `People API`
+   3. Clique em **People API** nos resultados
+   4. Clique no botão **ENABLE** (Ativar)
+
+   **Opção B - Via menu:**
+   1. Menu ☰ → **APIs & Services** → **Library**
+   2. Procure por `People API`
+   3. Clique em **People API**
+   4. Clique em **ENABLE**
+
+**3. Aguardar ativação:**
+   - A API pode levar alguns segundos para ativar completamente
+
+**4. Testar novamente:**
+   ```bash
+   # Reinicie o app
+   flutter run -d chrome
+   ```
+
+### Verificação
+
+Após habilitar a People API, você deve ver no console:
+```
+[GSI_LOGGER-TOKEN_CLIENT]: Handling response.
+{"access_token":"ya29...", "token_type":"Bearer", ...}
+```
+
+E **NÃO** deve mais ver erro 403.
+
+### APIs Necessárias para Google Sign-In
+
+Para o Google Sign-In funcionar completamente na web, você precisa:
+- ✅ **People API** - Para obter dados do perfil
+- ✅ **OAuth 2.0** - Já configurado automaticamente com Firebase Auth
+
+---
+
 ## Erro: "Failed to connect to Firebase"
 
 ### Verificações
