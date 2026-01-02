@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
+import '../info/tutorial_screen.dart';
+import '../info/about_screen.dart';
+import '../info/privacy_policy_screen.dart';
+import '../info/terms_of_service_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
@@ -98,6 +102,65 @@ class ProfileScreen extends StatelessWidget {
                   'Member since ${_formatDate(user.createdAt)}',
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
+                const SizedBox(height: 32),
+
+                // Info & Help Section
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      const Text(
+                        'Information & Help',
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      _MenuButton(
+                        icon: Icons.school,
+                        title: 'How to Play',
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const TutorialScreen()),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      _MenuButton(
+                        icon: Icons.info_outline,
+                        title: 'About',
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const AboutScreen()),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      _MenuButton(
+                        icon: Icons.privacy_tip_outlined,
+                        title: 'Privacy Policy',
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen()),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      _MenuButton(
+                        icon: Icons.description_outlined,
+                        title: 'Terms of Service',
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const TermsOfServiceScreen()),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ],
             ),
           );
@@ -143,6 +206,52 @@ class _StatCard extends StatelessWidget {
             style: const TextStyle(color: AppColors.textSecondary),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _MenuButton extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final VoidCallback onTap;
+
+  const _MenuButton({
+    required this.icon,
+    required this.title,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: AppColors.surfaceLight,
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(8),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              Icon(icon, color: AppColors.accent, size: 20),
+              const SizedBox(width: 12),
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 15,
+                  color: Colors.white,
+                ),
+              ),
+              const Spacer(),
+              Icon(
+                Icons.chevron_right,
+                color: Colors.white.withOpacity(0.4),
+                size: 20,
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
