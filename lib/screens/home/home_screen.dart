@@ -10,6 +10,7 @@ import '../friends/friends_screen.dart';
 import '../leaderboard/leaderboard_screen.dart';
 import '../profile/profile_screen.dart';
 import '../online/matchmaking_screen.dart';
+import '../lan/lan_lobby_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -224,8 +225,19 @@ class _HomeScreenState extends State<HomeScreen> {
                       color: Colors.blue,
                       onTap: () => _startGame(context, GameMode.online),
                     ),
+                    const SizedBox(height: 16),
+                    _MenuButton(
+                      icon: Icons.wifi,
+                      title: 'Jogo Local (LAN)',
+                      subtitle: 'Jogue na mesma rede - casual',
+                      color: Colors.purple,
+                      onTap: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (_) => const LanLobbyScreen()),
+                      ),
+                    ),
                     const SizedBox(height: 32),
-                    
+
                     // Secondary buttons
                     Row(
                       children: [

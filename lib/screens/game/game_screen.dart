@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/game_model.dart';
+import '../../models/lan_game_model.dart';
 import '../../services/game_service.dart';
 import '../../services/online_game_service.dart';
+import '../../services/lan_game_service.dart';
 import '../../services/auth_service.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/checkers_board.dart';
@@ -16,21 +18,32 @@ class GameScreen extends StatefulWidget {
 
 class _GameScreenState extends State<GameScreen> {
   bool _isOnlineGame = false;
+  bool _isLanGame = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final onlineGame = context.read<OnlineGameService>();
+      final lanGame = context.read<LanGameService>();
+
       if (onlineGame.currentGame != null) {
         setState(() => _isOnlineGame = true);
+      } else if (lanGame.status == LanConnectionStatus.connected) {
+        setState(() => _isLanGame = true);
       }
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    return _isOnlineGame ? _buildOnlineGame(context) : _buildLocalGame(context);
+    if (_isOnlineGame) {
+      return _buildOnlineGame(context);
+    } else if (_isLanGame) {
+      return _buildLanGame(context);
+    } else {
+      return _buildLocalGame(context);
+    }
   }
 
   Widget _buildLocalGame(BuildContext context) {
@@ -467,6 +480,240 @@ class _GameScreenState extends State<GameScreen> {
       ),
     );
   }
+
+  // LAN Game UI
+  Widget _buildLanGame(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Row(
+          children: [
+            const Text('Jogo LAN'),
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              decoration: BoxDecoration(
+                color: AppColors.accent.withOpacity(0.2),
+                borderRadius: BorderRadius.circular(4),
+              ),
+              child: Text(
+                'Casual',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppColors.accent,
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.flag),
+            onPressed: () => _showLanResignDialog(context),
+          ),
+        ],
+      ),
+      body: Consumer<LanGameService>(
+        builder: (context, lanService, _) {
+          final state = lanService.gameState;
+          if (state == null) {
+            return const Center(child: Text('No game in progress'));
+          }
+
+          final myColor = lanService.myColor;
+          final isMyTurn = state.turn == myColor;
+          final opponentColor = myColor == PlayerColor.red
+              ? PlayerColor.white
+              : PlayerColor.red;
+
+          return Column(
+            children: [
+              // Opponent info
+              _LanPlayerBar(
+                name: lanService.isHost ? 'Guest' : 'Host',
+                isActive: !isMyTurn,
+                color: opponentColor,
+                isHost: !lanService.isHost,
+              ),
+
+              // Board
+              Expanded(
+                child: Center(
+                  child: CheckersBoard(
+                    gameState: state,
+                    onSquareTap: isMyTurn
+                        ? (pos) => _handleLanMove(context, pos, state, lanService)
+                        : (_) {}, // Disable moves when not my turn
+                    isThinking: !isMyTurn,
+                  ),
+                ),
+              ),
+
+              // Turn indicator
+              if (!isMyTurn)
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  margin: const EdgeInsets.symmetric(horizontal: 16),
+                  decoration: BoxDecoration(
+                    color: AppColors.surface,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: AppColors.accent,
+                        ),
+                      ),
+                      SizedBox(width: 12),
+                      Text(
+                        'Aguardando oponente...',
+                        style: TextStyle(color: AppColors.textSecondary),
+                      ),
+                    ],
+                  ),
+                ),
+
+              // My player info
+              _LanPlayerBar(
+                name: 'Você',
+                isActive: isMyTurn,
+                color: myColor!,
+                isHost: lanService.isHost,
+              ),
+
+              // Move history
+              Container(
+                height: 50,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: ListView.builder(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: state.history.length,
+                  itemBuilder: (context, i) => Padding(
+                    padding: const EdgeInsets.only(right: 8),
+                    child: Chip(
+                      label: Text(
+                        '${(i ~/ 2) + 1}. ${state.history[i]}',
+                        style: const TextStyle(fontSize: 12),
+                      ),
+                      backgroundColor: AppColors.surface,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Winner dialog
+              if (state.winner != null)
+                _buildLanWinnerOverlay(context, state.winner!, myColor!),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  void _handleLanMove(BuildContext context, Position pos, GameState state, LanGameService lanService) {
+    // Handle piece selection
+    final piece = state.board[pos.row][pos.col];
+
+    if (piece != null && piece.color == lanService.myColor) {
+      // Selected own piece - just update local state for visual feedback
+      return;
+    }
+
+    // Check if it's a valid move
+    if (state.selectedPos != null) {
+      final validMoves = _calculateValidMovesForOnline(state);
+      final move = validMoves.where((m) =>
+        m.from == state.selectedPos && m.to == pos
+      ).firstOrNull;
+
+      if (move != null) {
+        lanService.sendMove(move);
+      }
+    }
+  }
+
+  void _showLanResignDialog(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Desistir?'),
+        content: const Text('Tem certeza que quer desistir deste jogo?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancelar'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final lanService = context.read<LanGameService>();
+              lanService.resign();
+              await lanService.cleanup();
+              if (context.mounted) {
+                Navigator.pop(ctx);
+                Navigator.pop(context);
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Desistir'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLanWinnerOverlay(BuildContext context, PlayerColor winner, PlayerColor myColor) {
+    final didIWin = winner == myColor;
+    return Container(
+      padding: const EdgeInsets.all(24),
+      margin: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AppColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: didIWin ? AppColors.accent : AppColors.pieceRed,
+          width: 2,
+        ),
+      ),
+      child: Column(
+        children: [
+          Text(
+            didIWin ? '🎉 Você Venceu!' : '😞 Você Perdeu',
+            style: Theme.of(context).textTheme.headlineSmall,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Jogo casual - não afeta ranking',
+            style: TextStyle(
+              fontSize: 12,
+              color: AppColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              ElevatedButton(
+                onPressed: () async {
+                  final lanService = context.read<LanGameService>();
+                  await lanService.cleanup();
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                  }
+                },
+                child: const Text('Voltar ao Menu'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _PlayerBar extends StatelessWidget {
@@ -594,6 +841,87 @@ class _OnlinePlayerBar extends StatelessWidget {
               Icons.cloud_off,
               size: 16,
               color: Colors.red,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _LanPlayerBar extends StatelessWidget {
+  final String name;
+  final bool isActive;
+  final PlayerColor color;
+  final bool isHost;
+
+  const _LanPlayerBar({
+    required this.name,
+    required this.isActive,
+    required this.color,
+    required this.isHost,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      margin: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: isActive ? AppColors.surfaceLight : AppColors.surface,
+        borderRadius: BorderRadius.circular(8),
+        border: isActive
+            ? Border.all(color: AppColors.accent, width: 2)
+            : null,
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: color == PlayerColor.red
+                  ? AppColors.pieceRed
+                  : AppColors.pieceWhite,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 12),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                name,
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              Row(
+                children: [
+                  Icon(
+                    isHost ? Icons.wifi_tethering : Icons.wifi,
+                    size: 12,
+                    color: AppColors.accent,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    isHost ? 'Host' : 'Guest',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const Spacer(),
+          if (isActive) ...[
+            Container(
+              width: 8,
+              height: 8,
+              decoration: const BoxDecoration(
+                color: AppColors.accent,
+                shape: BoxShape.circle,
+              ),
             ),
           ],
         ],

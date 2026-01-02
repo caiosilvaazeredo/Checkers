@@ -7,6 +7,7 @@ import 'services/game_service.dart';
 import 'services/friend_service.dart';
 import 'services/leaderboard_service.dart';
 import 'services/online_game_service.dart';
+import 'services/lan_game_service.dart';
 import 'screens/auth/auth_screen.dart';
 import 'screens/home/home_screen.dart';
 import 'theme/app_theme.dart';
@@ -29,6 +30,7 @@ class MasterCheckersApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => FriendService()),
         ChangeNotifierProvider(create: (_) => LeaderboardService()),
         ChangeNotifierProvider(create: (_) => OnlineGameService()),
+        ChangeNotifierProvider(create: (_) => LanGameService()),
       ],
       child: MaterialApp(
         title: 'Master Checkers AI',
