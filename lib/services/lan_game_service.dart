@@ -1,30 +1,21 @@
 import 'dart:async';
-import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:uuid/uuid.dart';
-import 'package:network_info_plus/network_info_plus.dart';
 import '../models/game_model.dart';
 import '../models/lan_game_model.dart';
+import 'lan_backend.dart';
+import 'firebase_lan_backend.dart';
+import 'native_lan_backend.dart';
 
 /// Serviço de jogo LAN - Similar ao sistema do Mario Party
 /// Permite descobrir e conectar a jogos na rede local sem ranking
-/// NOTA: LAN multiplayer não está disponível na plataforma web devido a limitações de segurança do navegador
+/// Usa Firebase como backend na web e sockets nativos em outras plataformas
 class LanGameService extends ChangeNotifier {
-  static const int discoveryPort = 45123;
-  static const int gamePortStart = 45124;
-  static const String multicastAddress = '224.0.0.251';
+  late final LanBackend _backend;
 
   LanConnectionStatus _status = LanConnectionStatus.disconnected;
   List<LanGameAdvertisement> _availableGames = [];
   String? _currentGameId;
-  String? _hostIp;
-  int? _gamePort;
-  ServerSocket? _gameServer;
-  Socket? _gameSocket;
-  RawDatagramSocket? _discoverySocket;
-  Timer? _advertisementTimer;
-  Timer? _cleanupTimer;
 
   String _playerName = 'Jogador';
   GameVariant _selectedVariant = GameVariant.american;
@@ -34,6 +25,43 @@ class LanGameService extends ChangeNotifier {
   GameState? _gameState;
   final StreamController<Move> _moveController = StreamController<Move>.broadcast();
   final StreamController<String> _disconnectController = StreamController<String>.broadcast();
+
+  StreamSubscription? _gamesSubscription;
+  StreamSubscription? _messagesSubscription;
+  StreamSubscription? _disconnectSubscription;
+
+  LanGameService() {
+    // Seleciona backend baseado na plataforma
+    if (kIsWeb) {
+      debugPrint('🌐 Usando Firebase LAN backend (web)');
+      _backend = FirebaseLanBackend();
+    } else {
+      debugPrint('📱 Usando Native LAN backend (mobile/desktop)');
+      _backend = NativeLanBackend();
+    }
+
+    _setupBackendListeners();
+  }
+
+  void _setupBackendListeners() {
+    // Escuta jogos disponíveis
+    _gamesSubscription = _backend.gamesStream.listen((games) {
+      _availableGames = games;
+      notifyListeners();
+    });
+
+    // Escuta mensagens
+    _messagesSubscription = _backend.messagesStream.listen((message) {
+      _handleMessage(message);
+    });
+
+    // Escuta desconexões
+    _disconnectSubscription = _backend.disconnectStream.listen((reason) {
+      debugPrint('🔌 Desconectado: $reason');
+      _disconnectController.add(reason);
+      cleanup();
+    });
+  }
 
   // Getters
   LanConnectionStatus get status => _status;
@@ -46,8 +74,8 @@ class LanGameService extends ChangeNotifier {
   Stream<String> get disconnectStream => _disconnectController.stream;
 
   /// Verifica se a plataforma atual suporta multiplayer LAN
-  /// Web não suporta devido a restrições de segurança do navegador
-  bool get isPlatformSupported => !kIsWeb;
+  /// Agora sempre retorna true, pois Firebase permite LAN na web
+  bool get isPlatformSupported => true;
 
   void setPlayerName(String name) {
     _playerName = name;
@@ -60,15 +88,6 @@ class LanGameService extends ChangeNotifier {
   /// Inicia o servidor de descoberta e anuncia o jogo
   Future<bool> hostGame() async {
     try {
-      // Verifica se a plataforma é suportada
-      if (!isPlatformSupported) {
-        throw UnsupportedError(
-          'Multiplayer LAN não está disponível na web. '
-          'Por favor, use a versão desktop (Windows, Mac, Linux) ou mobile (Android, iOS) '
-          'para jogar multiplayer local, ou use o multiplayer online.'
-        );
-      }
-
       _status = LanConnectionStatus.hosting;
       notifyListeners();
 
@@ -77,52 +96,21 @@ class LanGameService extends ChangeNotifier {
       _isHost = true;
       _myColor = PlayerColor.red; // Host sempre é vermelho
 
-      // Obtém IP local
-      final networkInfo = NetworkInfo();
-      final wifiIp = await networkInfo.getWifiIP();
+      final success = await _backend.hostGame(
+        gameId: _currentGameId!,
+        hostName: _playerName,
+        variant: _selectedVariant,
+      );
 
-      if (wifiIp == null) {
-        throw Exception('Não foi possível obter o IP local. Verifique se está conectado ao Wi-Fi.');
+      if (success) {
+        debugPrint('🎮 Jogo hospedado com sucesso: $_currentGameId');
+        // Aguardar conexão do jogador para mudar para status "connected"
+        // O status será atualizado quando receber joinRequest
+        return true;
+      } else {
+        await cleanup();
+        return false;
       }
-
-      _hostIp = wifiIp;
-
-      // Inicia servidor de jogo
-      _gamePort = gamePortStart;
-      _gameServer = await ServerSocket.bind(InternetAddress.anyIPv4, _gamePort!);
-
-      debugPrint('🎮 Servidor de jogo iniciado em $_hostIp:$_gamePort');
-
-      // Aguarda conexão do oponente
-      _gameServer!.listen((socket) async {
-        debugPrint('👤 Oponente conectado: ${socket.remoteAddress.address}');
-        _gameSocket = socket;
-        _stopAdvertising();
-
-        // Envia confirmação de entrada
-        _sendMessage(LanMessage(
-          type: LanMessageType.joinAccepted,
-          data: {'color': PlayerColor.white.name},
-        ));
-
-        // Escuta mensagens do oponente
-        _listenToSocket(socket);
-
-        // Atualiza status
-        _status = LanConnectionStatus.connected;
-        notifyListeners();
-
-        // Inicia o jogo
-        _initializeGameState();
-      });
-
-      // Inicia descoberta multicast
-      await _startDiscovery();
-
-      // Inicia timer para anunciar o jogo periodicamente
-      _startAdvertising();
-
-      return true;
     } catch (e) {
       debugPrint('❌ Erro ao hospedar jogo: $e');
       await cleanup();
@@ -133,26 +121,12 @@ class LanGameService extends ChangeNotifier {
   /// Inicia a descoberta de jogos na rede local
   Future<void> discoverGames() async {
     try {
-      // Verifica se a plataforma é suportada
-      if (!isPlatformSupported) {
-        throw UnsupportedError(
-          'Multiplayer LAN não está disponível na web. '
-          'Por favor, use a versão desktop (Windows, Mac, Linux) ou mobile (Android, iOS) '
-          'para jogar multiplayer local, ou use o multiplayer online.'
-        );
-      }
-
       _status = LanConnectionStatus.discovering;
       _availableGames.clear();
       notifyListeners();
 
-      await _startDiscovery();
-
-      // Timer para limpar jogos expirados
-      _cleanupTimer = Timer.periodic(const Duration(seconds: 5), (_) {
-        _availableGames.removeWhere((game) => game.isExpired());
-        notifyListeners();
-      });
+      await _backend.discoverGames();
+      debugPrint('🔍 Descoberta de jogos iniciada');
     } catch (e) {
       debugPrint('❌ Erro ao descobrir jogos: $e');
       _status = LanConnectionStatus.disconnected;
@@ -163,15 +137,6 @@ class LanGameService extends ChangeNotifier {
   /// Conecta a um jogo específico
   Future<bool> joinGame(LanGameAdvertisement game) async {
     try {
-      // Verifica se a plataforma é suportada
-      if (!isPlatformSupported) {
-        throw UnsupportedError(
-          'Multiplayer LAN não está disponível na web. '
-          'Por favor, use a versão desktop (Windows, Mac, Linux) ou mobile (Android, iOS) '
-          'para jogar multiplayer local, ou use o multiplayer online.'
-        );
-      }
-
       _status = LanConnectionStatus.connecting;
       notifyListeners();
 
@@ -180,26 +145,19 @@ class LanGameService extends ChangeNotifier {
       _myColor = PlayerColor.white; // Guest sempre é branco
       _selectedVariant = game.variant;
 
-      // Conecta ao servidor do jogo
-      _gameSocket = await Socket.connect(game.hostIp, game.port);
-      debugPrint('🔌 Conectado ao jogo: ${game.hostName}');
+      final success = await _backend.joinGame(
+        game: game,
+        playerName: _playerName,
+      );
 
-      // Envia solicitação de entrada
-      _sendMessage(LanMessage(
-        type: LanMessageType.joinRequest,
-        data: {'playerName': _playerName},
-      ));
-
-      // Escuta mensagens do host
-      _listenToSocket(_gameSocket!);
-
-      _status = LanConnectionStatus.connected;
-      notifyListeners();
-
-      // Fecha descoberta
-      await _stopDiscovery();
-
-      return true;
+      if (success) {
+        // Aguarda confirmação do host
+        // O status será atualizado quando receber joinAccepted
+        return true;
+      } else {
+        await cleanup();
+        return false;
+      }
     } catch (e) {
       debugPrint('❌ Erro ao entrar no jogo: $e');
       await cleanup();
@@ -207,127 +165,23 @@ class LanGameService extends ChangeNotifier {
     }
   }
 
-  /// Inicia a descoberta multicast
-  Future<void> _startDiscovery() async {
-    _discoverySocket = await RawDatagramSocket.bind(InternetAddress.anyIPv4, discoveryPort);
-    _discoverySocket!.broadcastEnabled = true;
-    _discoverySocket!.multicastLoopback = false;
-
-    // Join multicast group
-    try {
-      _discoverySocket!.joinMulticast(InternetAddress(multicastAddress));
-    } catch (e) {
-      debugPrint('⚠️ Aviso: Não foi possível entrar no grupo multicast: $e');
-    }
-
-    _discoverySocket!.listen((event) {
-      if (event == RawSocketEvent.read) {
-        final datagram = _discoverySocket!.receive();
-        if (datagram != null) {
-          try {
-            final message = utf8.decode(datagram.data);
-            final json = jsonDecode(message) as Map<String, dynamic>;
-            final lanMessage = LanMessage.fromJson(json);
-
-            if (lanMessage.type == LanMessageType.gameAdvertisement) {
-              final game = LanGameAdvertisement.fromJson(lanMessage.data);
-
-              // Ignora nosso próprio anúncio
-              if (game.gameId == _currentGameId) return;
-
-              // Atualiza ou adiciona jogo
-              final index = _availableGames.indexWhere((g) => g.gameId == game.gameId);
-              if (index >= 0) {
-                _availableGames[index] = game;
-              } else {
-                _availableGames.add(game);
-              }
-              notifyListeners();
-            }
-          } catch (e) {
-            debugPrint('⚠️ Erro ao processar pacote de descoberta: $e');
-          }
-        }
-      }
-    });
-  }
-
-  /// Inicia o anúncio periódico do jogo
-  void _startAdvertising() {
-    _advertisementTimer = Timer.periodic(const Duration(seconds: 2), (_) {
-      _advertiseGame();
-    });
-  }
-
-  /// Anuncia o jogo via multicast
-  void _advertiseGame() {
-    if (_discoverySocket == null || _currentGameId == null) return;
-
-    final advertisement = LanGameAdvertisement(
-      gameId: _currentGameId!,
-      hostName: _playerName,
-      hostIp: _hostIp!,
-      port: _gamePort!,
-      variant: _selectedVariant,
-      timestamp: DateTime.now(),
-    );
-
-    final message = LanMessage(
-      type: LanMessageType.gameAdvertisement,
-      data: advertisement.toJson(),
-    );
-
-    final data = utf8.encode(jsonEncode(message.toJson()));
-    _discoverySocket!.send(data, InternetAddress(multicastAddress), discoveryPort);
-  }
-
-  /// Para o anúncio do jogo
-  void _stopAdvertising() {
-    _advertisementTimer?.cancel();
-    _advertisementTimer = null;
-  }
-
-  /// Para a descoberta
-  Future<void> _stopDiscovery() async {
-    _cleanupTimer?.cancel();
-    _cleanupTimer = null;
-    _discoverySocket?.close();
-    _discoverySocket = null;
-  }
-
-  /// Escuta mensagens do socket
-  void _listenToSocket(Socket socket) {
-    socket.listen(
-      (data) {
-        try {
-          final message = utf8.decode(data);
-          final lines = message.split('\n').where((l) => l.trim().isNotEmpty);
-
-          for (final line in lines) {
-            final json = jsonDecode(line) as Map<String, dynamic>;
-            final lanMessage = LanMessage.fromJson(json);
-            _handleMessage(lanMessage);
-          }
-        } catch (e) {
-          debugPrint('⚠️ Erro ao processar mensagem: $e');
-        }
-      },
-      onError: (error) {
-        debugPrint('❌ Erro no socket: $error');
-        _handleDisconnect();
-      },
-      onDone: () {
-        debugPrint('🔌 Conexão encerrada');
-        _handleDisconnect();
-      },
-    );
-  }
-
   /// Processa mensagem recebida
   void _handleMessage(LanMessage message) {
     switch (message.type) {
+      case LanMessageType.joinRequest:
+        debugPrint('👤 Jogador solicitou entrada');
+        // Host aceita automaticamente
+        if (_isHost) {
+          _status = LanConnectionStatus.connected;
+          notifyListeners();
+          _initializeGameState();
+        }
+        break;
+
       case LanMessageType.joinAccepted:
         debugPrint('✅ Entrada aceita no jogo');
+        _status = LanConnectionStatus.connected;
+        notifyListeners();
         _initializeGameState();
         break;
 
@@ -357,22 +211,11 @@ class LanGameService extends ChangeNotifier {
 
       case LanMessageType.disconnect:
         debugPrint('🔌 Oponente desconectou');
-        _handleDisconnect();
+        _disconnectController.add('disconnect');
         break;
 
       default:
         break;
-    }
-  }
-
-  /// Envia uma mensagem
-  void _sendMessage(LanMessage message) {
-    if (_gameSocket == null) return;
-
-    try {
-      _gameSocket!.write(message.toJsonString());
-    } catch (e) {
-      debugPrint('❌ Erro ao enviar mensagem: $e');
     }
   }
 
@@ -382,7 +225,7 @@ class LanGameService extends ChangeNotifier {
     _applyMove(move);
 
     // Envia para o oponente
-    _sendMessage(LanMessage(
+    _backend.sendMessage(LanMessage(
       type: LanMessageType.move,
       data: {
         'fromRow': move.from.row,
@@ -496,7 +339,7 @@ class LanGameService extends ChangeNotifier {
 
   /// Desiste do jogo
   void resign() {
-    _sendMessage(LanMessage(
+    _backend.sendMessage(LanMessage(
       type: LanMessageType.resign,
       data: {},
     ));
@@ -538,22 +381,10 @@ class LanGameService extends ChangeNotifier {
     return board;
   }
 
-  /// Trata desconexão
-  void _handleDisconnect() {
-    _disconnectController.add('disconnect');
-    cleanup();
-  }
-
   /// Limpa recursos
   Future<void> cleanup() async {
-    _stopAdvertising();
-    await _stopDiscovery();
-
-    _gameSocket?.close();
-    _gameSocket = null;
-
-    _gameServer?.close();
-    _gameServer = null;
+    await _backend.stopDiscovery();
+    await _backend.cleanup();
 
     _status = LanConnectionStatus.disconnected;
     _currentGameId = null;
@@ -567,8 +398,12 @@ class LanGameService extends ChangeNotifier {
   @override
   void dispose() {
     cleanup();
+    _gamesSubscription?.cancel();
+    _messagesSubscription?.cancel();
+    _disconnectSubscription?.cancel();
     _moveController.close();
     _disconnectController.close();
+    _backend.dispose();
     super.dispose();
   }
 }
