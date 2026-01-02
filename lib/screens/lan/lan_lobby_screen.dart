@@ -160,7 +160,7 @@ class _LanLobbyScreenState extends State<LanLobbyScreen>
                 // Campo de nome
                 TextField(
                   controller: _nameController,
-                  style: const TextStyle(color: AppColors.text),
+                  style: const TextStyle(color: AppColors.textPrimary),
                   decoration: InputDecoration(
                     labelText: 'Seu Nome',
                     labelStyle: TextStyle(color: AppColors.textSecondary),
@@ -186,7 +186,7 @@ class _LanLobbyScreenState extends State<LanLobbyScreen>
                     value: _selectedVariant,
                     isExpanded: true,
                     dropdownColor: AppColors.surface,
-                    style: const TextStyle(color: AppColors.text),
+                    style: const TextStyle(color: AppColors.textPrimary),
                     underline: const SizedBox(),
                     items: const [
                       DropdownMenuItem(
@@ -240,7 +240,7 @@ class _LanLobbyScreenState extends State<LanLobbyScreen>
                           const Text(
                             'Aguardando jogador...',
                             style: TextStyle(
-                              color: AppColors.text,
+                              color: AppColors.textPrimary,
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
                             ),
@@ -311,7 +311,7 @@ class _LanLobbyScreenState extends State<LanLobbyScreen>
                             const Text(
                               'Jogos Disponíveis',
                               style: TextStyle(
-                                color: AppColors.text,
+                                color: AppColors.textPrimary,
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -374,7 +374,7 @@ class _LanLobbyScreenState extends State<LanLobbyScreen>
                                         title: Text(
                                           game.hostName,
                                           style: const TextStyle(
-                                            color: AppColors.text,
+                                            color: AppColors.textPrimary,
                                             fontWeight: FontWeight.bold,
                                           ),
                                         ),
