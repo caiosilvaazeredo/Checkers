@@ -9,6 +9,7 @@ import '../models/lan_game_model.dart';
 
 /// Serviço de jogo LAN - Similar ao sistema do Mario Party
 /// Permite descobrir e conectar a jogos na rede local sem ranking
+/// NOTA: LAN multiplayer não está disponível na plataforma web devido a limitações de segurança do navegador
 class LanGameService extends ChangeNotifier {
   static const int discoveryPort = 45123;
   static const int gamePortStart = 45124;
@@ -44,6 +45,10 @@ class LanGameService extends ChangeNotifier {
   Stream<Move> get moveStream => _moveController.stream;
   Stream<String> get disconnectStream => _disconnectController.stream;
 
+  /// Verifica se a plataforma atual suporta multiplayer LAN
+  /// Web não suporta devido a restrições de segurança do navegador
+  bool get isPlatformSupported => !kIsWeb;
+
   void setPlayerName(String name) {
     _playerName = name;
   }
@@ -55,6 +60,15 @@ class LanGameService extends ChangeNotifier {
   /// Inicia o servidor de descoberta e anuncia o jogo
   Future<bool> hostGame() async {
     try {
+      // Verifica se a plataforma é suportada
+      if (!isPlatformSupported) {
+        throw UnsupportedError(
+          'Multiplayer LAN não está disponível na web. '
+          'Por favor, use a versão desktop (Windows, Mac, Linux) ou mobile (Android, iOS) '
+          'para jogar multiplayer local, ou use o multiplayer online.'
+        );
+      }
+
       _status = LanConnectionStatus.hosting;
       notifyListeners();
 
@@ -119,6 +133,15 @@ class LanGameService extends ChangeNotifier {
   /// Inicia a descoberta de jogos na rede local
   Future<void> discoverGames() async {
     try {
+      // Verifica se a plataforma é suportada
+      if (!isPlatformSupported) {
+        throw UnsupportedError(
+          'Multiplayer LAN não está disponível na web. '
+          'Por favor, use a versão desktop (Windows, Mac, Linux) ou mobile (Android, iOS) '
+          'para jogar multiplayer local, ou use o multiplayer online.'
+        );
+      }
+
       _status = LanConnectionStatus.discovering;
       _availableGames.clear();
       notifyListeners();
@@ -140,6 +163,15 @@ class LanGameService extends ChangeNotifier {
   /// Conecta a um jogo específico
   Future<bool> joinGame(LanGameAdvertisement game) async {
     try {
+      // Verifica se a plataforma é suportada
+      if (!isPlatformSupported) {
+        throw UnsupportedError(
+          'Multiplayer LAN não está disponível na web. '
+          'Por favor, use a versão desktop (Windows, Mac, Linux) ou mobile (Android, iOS) '
+          'para jogar multiplayer local, ou use o multiplayer online.'
+        );
+      }
+
       _status = LanConnectionStatus.connecting;
       notifyListeners();
 
