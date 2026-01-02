@@ -64,7 +64,7 @@ class _LanLobbyScreenState extends State<LanLobbyScreen>
     if (!success && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Erro ao hospedar jogo. Verifique sua conexão Wi-Fi.'),
+          content: Text('Erro ao hospedar jogo. Verifique sua conexão.'),
           backgroundColor: Colors.red,
         ),
       );
@@ -102,46 +102,6 @@ class _LanLobbyScreenState extends State<LanLobbyScreen>
     setState(() => _isHosting = false);
   }
 
-  Widget _buildAlternativeOption(IconData icon, String title, String description) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: AppColors.textSecondary.withOpacity(0.3)),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, color: AppColors.accent, size: 32),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: const TextStyle(
-                    color: AppColors.textPrimary,
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  description,
-                  style: TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 14,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   @override
   void dispose() {
     _animationController.dispose();
@@ -155,90 +115,6 @@ class _LanLobbyScreenState extends State<LanLobbyScreen>
   @override
   Widget build(BuildContext context) {
     final lanService = context.watch<LanGameService>();
-
-    // Verifica se a plataforma é suportada
-    if (!lanService.isPlatformSupported) {
-      return Scaffold(
-        appBar: AppBar(
-          title: const Text('Jogo Local (LAN)'),
-          backgroundColor: AppColors.background,
-        ),
-        body: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(24.0),
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.warning_amber_rounded,
-                    size: 80,
-                    color: AppColors.accent,
-                  ),
-                  const SizedBox(height: 24),
-                  const Text(
-                    'Multiplayer LAN não disponível na web',
-                    style: TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 24,
-                      fontWeight: FontWeight.bold,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Devido a restrições de segurança do navegador, o multiplayer local (LAN) não funciona na versão web.',
-                    style: TextStyle(
-                      color: AppColors.textSecondary,
-                      fontSize: 16,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 32),
-                  const Text(
-                    'Alternativas:',
-                    style: TextStyle(
-                      color: AppColors.textPrimary,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  _buildAlternativeOption(
-                    Icons.computer,
-                    'Versão Desktop',
-                    'Baixe a versão para Windows, Mac ou Linux para jogar LAN',
-                  ),
-                  const SizedBox(height: 12),
-                  _buildAlternativeOption(
-                    Icons.smartphone,
-                    'Versão Mobile',
-                    'Baixe a versão para Android ou iOS para jogar LAN',
-                  ),
-                  const SizedBox(height: 12),
-                  _buildAlternativeOption(
-                    Icons.cloud,
-                    'Multiplayer Online',
-                    'Jogue online contra outros jogadores de qualquer lugar',
-                  ),
-                  const SizedBox(height: 32),
-                  ElevatedButton.icon(
-                    onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.arrow_back),
-                    label: const Text('Voltar'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.accent,
-                      foregroundColor: AppColors.background,
-                      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      );
-    }
 
     return PopScope(
       onPopInvokedWithResult: (didPop, result) async {
