@@ -1,7 +1,7 @@
 enum PlayerColor { red, white }
 enum PieceType { man, king }
 enum GameVariant { american, brazilian }
-enum GameMode { ai, pvp, online }
+enum GameMode { ai, pvp, online, lan }
 
 class Position {
   final int row;
