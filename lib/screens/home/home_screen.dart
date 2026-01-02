@@ -3,14 +3,32 @@ import 'package:provider/provider.dart';
 import '../../models/game_model.dart';
 import '../../services/auth_service.dart';
 import '../../services/game_service.dart';
+import '../../services/online_game_service.dart';
 import '../../theme/app_theme.dart';
 import '../game/game_screen.dart';
 import '../friends/friends_screen.dart';
 import '../leaderboard/leaderboard_screen.dart';
 import '../profile/profile_screen.dart';
+import '../online/matchmaking_screen.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final auth = context.read<AuthService>();
+      if (auth.currentUser != null) {
+        context.read<OnlineGameService>().listenForInvites(auth.currentUser!.uid);
+      }
+    });
+  }
 
   void _startGame(BuildContext context, GameMode mode) {
     showModalBottomSheet(
@@ -20,6 +38,72 @@ class HomeScreen extends StatelessWidget {
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (ctx) => _GameSettingsSheet(mode: mode),
+    );
+  }
+
+  void _showPendingInvites(BuildContext context) {
+    final onlineGame = context.read<OnlineGameService>();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Game Invites'),
+        content: SizedBox(
+          width: double.maxFinite,
+          child: ListView.builder(
+            shrinkWrap: true,
+            itemCount: onlineGame.pendingInvites.length,
+            itemBuilder: (context, index) {
+              final invite = onlineGame.pendingInvites[index];
+              return Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: ListTile(
+                  leading: CircleAvatar(
+                    backgroundColor: AppColors.accent,
+                    child: Text(invite.fromUser.username[0].toUpperCase()),
+                  ),
+                  title: Text(invite.fromUser.username),
+                  subtitle: Text(
+                    '${invite.variant.name.toUpperCase()} Checkers\nRating: ${invite.fromUser.rating}',
+                  ),
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.check, color: AppColors.accent),
+                        onPressed: () async {
+                          await onlineGame.acceptInvite(invite);
+                          if (context.mounted) {
+                            Navigator.pop(ctx);
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => const GameScreen(),
+                              ),
+                            );
+                          }
+                        },
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Colors.red),
+                        onPressed: () async {
+                          await onlineGame.declineInvite(invite);
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -71,7 +155,47 @@ class HomeScreen extends StatelessWidget {
                   ),
                 ],
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 16),
+
+              // Game invites indicator
+              Consumer<OnlineGameService>(
+                builder: (context, onlineGame, _) {
+                  if (onlineGame.pendingInvites.isEmpty) {
+                    return const SizedBox.shrink();
+                  }
+
+                  return Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    child: Material(
+                      color: Colors.orange.shade900.withOpacity(0.3),
+                      borderRadius: BorderRadius.circular(12),
+                      child: InkWell(
+                        onTap: () => _showPendingInvites(context),
+                        borderRadius: BorderRadius.circular(12),
+                        child: Padding(
+                          padding: const EdgeInsets.all(16),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.mail, color: Colors.orange),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  '${onlineGame.pendingInvites.length} pending game ${onlineGame.pendingInvites.length == 1 ? 'invite' : 'invites'}',
+                                  style: const TextStyle(
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.orange,
+                                  ),
+                                ),
+                              ),
+                              const Icon(Icons.chevron_right, color: Colors.orange),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
 
               // Play Buttons
               Expanded(
@@ -297,14 +421,26 @@ class _GameSettingsSheetState extends State<_GameSettingsSheet> {
             width: double.infinity,
             child: ElevatedButton(
               onPressed: () {
-                final game = context.read<GameService>();
-                game.setDifficulty(_difficulty);
-                game.startGame(_variant, widget.mode);
                 Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const GameScreen()),
-                );
+
+                if (widget.mode == GameMode.online) {
+                  // Navigate to matchmaking screen for online games
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => MatchmakingScreen(variant: _variant),
+                    ),
+                  );
+                } else {
+                  // Start local game (AI or PvP)
+                  final game = context.read<GameService>();
+                  game.setDifficulty(_difficulty);
+                  game.startGame(_variant, widget.mode);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const GameScreen()),
+                  );
+                }
               },
               child: const Text('Start Game'),
             ),

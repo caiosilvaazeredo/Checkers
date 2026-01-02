@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import '../../models/game_model.dart';
 import '../../services/auth_service.dart';
 import '../../services/friend_service.dart';
+import '../../services/online_game_service.dart';
 import '../../theme/app_theme.dart';
 
 class FriendsScreen extends StatefulWidget {
@@ -26,6 +28,66 @@ class _FriendsScreenState extends State<FriendsScreen> with SingleTickerProvider
     final auth = context.read<AuthService>();
     if (auth.currentUser != null) {
       context.read<FriendService>().loadFriends(auth.currentUser!.uid);
+      // Listen for game invites
+      context.read<OnlineGameService>().listenForInvites(auth.currentUser!.uid);
+    }
+  }
+
+  void _showChallengeDialog(dynamic friend) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Challenge ${friend.username}'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Choose game variant:'),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  _sendChallenge(friend, GameVariant.american);
+                  Navigator.pop(ctx);
+                },
+                child: const Text('American Checkers'),
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: ElevatedButton(
+                onPressed: () {
+                  _sendChallenge(friend, GameVariant.brazilian);
+                  Navigator.pop(ctx);
+                },
+                child: const Text('Brazilian Checkers'),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _sendChallenge(dynamic friend, GameVariant variant) async {
+    final auth = context.read<AuthService>();
+    final onlineGame = context.read<OnlineGameService>();
+
+    if (auth.currentUser == null) return;
+
+    await onlineGame.sendGameInvite(auth.currentUser!, friend, variant);
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Challenge sent to ${friend.username}!')),
+      );
     }
   }
 
@@ -102,6 +164,8 @@ class _FriendsScreenState extends State<FriendsScreen> with SingleTickerProvider
                   if (value == 'remove') {
                     final auth = context.read<AuthService>();
                     service.removeFriend(auth.currentUser!.uid, friend.uid);
+                  } else if (value == 'challenge') {
+                    _showChallengeDialog(friend);
                   }
                 },
               ),
