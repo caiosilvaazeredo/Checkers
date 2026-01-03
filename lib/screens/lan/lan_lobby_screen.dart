@@ -23,6 +23,7 @@ class _LanLobbyScreenState extends State<LanLobbyScreen>
   GameVariant _selectedVariant = GameVariant.american;
   bool _isHosting = false;
   PlayerColor? _selectedColor = PlayerColor.red; // null = aleatório
+  late LanGameService _lanService; // Salva referência para uso no dispose
 
   @override
   void initState() {
@@ -33,8 +34,8 @@ class _LanLobbyScreenState extends State<LanLobbyScreen>
     )..repeat();
 
     // Escuta por conexões
-    final lanService = context.read<LanGameService>();
-    lanService.addListener(_checkConnection);
+    _lanService = context.read<LanGameService>();
+    _lanService.addListener(_checkConnection);
   }
 
   void _checkConnection() {
@@ -176,9 +177,8 @@ class _LanLobbyScreenState extends State<LanLobbyScreen>
   void dispose() {
     _animationController.dispose();
     _nameController.dispose();
-    final lanService = context.read<LanGameService>();
-    lanService.removeListener(_checkConnection);
-    lanService.cleanup();
+    _lanService.removeListener(_checkConnection);
+    _lanService.cleanup();
     super.dispose();
   }
 
@@ -450,73 +450,6 @@ class _LanLobbyScreenState extends State<LanLobbyScreen>
                           TextButton(
                             onPressed: _cancelHosting,
                             child: const Text('Cancelar'),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-
-                // Aguardando aprovação (jogador solicitou entrada)
-                if (lanService.status == LanConnectionStatus.waitingApproval &&
-                    lanService.pendingPlayerName != null)
-                  Card(
-                    color: AppColors.accent.withOpacity(0.2),
-                    child: Padding(
-                      padding: const EdgeInsets.all(16.0),
-                      child: Column(
-                        children: [
-                          Icon(
-                            Icons.person_add,
-                            size: 48,
-                            color: AppColors.accent,
-                          ),
-                          const SizedBox(height: 16),
-                          const Text(
-                            'Jogador quer entrar!',
-                            style: TextStyle(
-                              color: AppColors.textPrimary,
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 8),
-                          Text(
-                            lanService.pendingPlayerName!,
-                            style: TextStyle(
-                              color: AppColors.accent,
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          const SizedBox(height: 16),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: ElevatedButton.icon(
-                                  onPressed: () => lanService.rejectPlayer(),
-                                  icon: const Icon(Icons.close),
-                                  label: const Text('Rejeitar'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.red,
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.all(16),
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: ElevatedButton.icon(
-                                  onPressed: () => lanService.acceptPlayer(),
-                                  icon: const Icon(Icons.check),
-                                  label: const Text('Aceitar'),
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: Colors.green,
-                                    foregroundColor: Colors.white,
-                                    padding: const EdgeInsets.all(16),
-                                  ),
-                                ),
-                              ),
-                            ],
                           ),
                         ],
                       ),
