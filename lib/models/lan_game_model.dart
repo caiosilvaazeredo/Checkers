@@ -71,9 +71,15 @@ class LanMessage {
   };
 
   factory LanMessage.fromJson(Map<String, dynamic> json) {
+    // Converte data para Map<String, dynamic> se for LinkedMap
+    final rawData = json['data'];
+    final data = rawData is Map<String, dynamic>
+        ? rawData
+        : Map<String, dynamic>.from(rawData as Map);
+
     return LanMessage(
       type: LanMessageType.values.firstWhere((t) => t.name == json['type']),
-      data: json['data'] as Map<String, dynamic>,
+      data: data,
     );
   }
 
