@@ -21,6 +21,10 @@ class LanGameService extends ChangeNotifier {
   GameVariant _selectedVariant = GameVariant.american;
   PlayerColor? _myColor;
   bool _isHost = false;
+  PlayerColor _hostPreferredColor = PlayerColor.red; // Cor preferida do host
+
+  // Jogador pendente de aprovação
+  String? _pendingPlayerName;
 
   GameState? _gameState;
   final StreamController<Move> _moveController = StreamController<Move>.broadcast();
@@ -72,6 +76,8 @@ class LanGameService extends ChangeNotifier {
   GameState? get gameState => _gameState;
   Stream<Move> get moveStream => _moveController.stream;
   Stream<String> get disconnectStream => _disconnectController.stream;
+  String? get pendingPlayerName => _pendingPlayerName;
+  PlayerColor get hostPreferredColor => _hostPreferredColor;
 
   /// Verifica se a plataforma atual suporta multiplayer LAN
   /// Agora sempre retorna true, pois Firebase permite LAN na web
@@ -85,6 +91,11 @@ class LanGameService extends ChangeNotifier {
     _selectedVariant = variant;
   }
 
+  void setHostPreferredColor(PlayerColor color) {
+    _hostPreferredColor = color;
+    notifyListeners();
+  }
+
   /// Inicia o servidor de descoberta e anuncia o jogo
   Future<bool> hostGame() async {
     try {
@@ -94,7 +105,7 @@ class LanGameService extends ChangeNotifier {
       // Gera ID único para o jogo
       _currentGameId = const Uuid().v4();
       _isHost = true;
-      _myColor = PlayerColor.red; // Host sempre é vermelho
+      _myColor = _hostPreferredColor; // Host usa cor preferida
 
       final success = await _backend.hostGame(
         gameId: _currentGameId!,
@@ -142,7 +153,7 @@ class LanGameService extends ChangeNotifier {
 
       _currentGameId = game.gameId;
       _isHost = false;
-      _myColor = PlayerColor.white; // Guest sempre é branco
+      // Cor será definida quando receber joinAccepted
       _selectedVariant = game.variant;
 
       final success = await _backend.joinGame(
@@ -165,24 +176,77 @@ class LanGameService extends ChangeNotifier {
     }
   }
 
+  /// Aceita o jogador pendente (apenas host)
+  void acceptPlayer() {
+    if (!_isHost || _pendingPlayerName == null) return;
+
+    debugPrint('✅ Host aceitou jogador: $_pendingPlayerName');
+
+    // Define cor do oponente (oposta à do host)
+    final opponentColor = _myColor == PlayerColor.red
+        ? PlayerColor.white
+        : PlayerColor.red;
+
+    // Envia confirmação de entrada
+    _backend.sendMessage(LanMessage(
+      type: LanMessageType.joinAccepted,
+      data: {'color': opponentColor.name},
+    ));
+
+    _pendingPlayerName = null;
+    _status = LanConnectionStatus.connected;
+    notifyListeners();
+
+    // Inicia o jogo
+    _initializeGameState();
+  }
+
+  /// Rejeita o jogador pendente (apenas host)
+  void rejectPlayer() {
+    if (!_isHost || _pendingPlayerName == null) return;
+
+    debugPrint('❌ Host rejeitou jogador: $_pendingPlayerName');
+
+    // Envia rejeição
+    _backend.sendMessage(LanMessage(
+      type: LanMessageType.joinRejected,
+      data: {},
+    ));
+
+    _pendingPlayerName = null;
+    _status = LanConnectionStatus.hosting;
+    notifyListeners();
+  }
+
   /// Processa mensagem recebida
   void _handleMessage(LanMessage message) {
     switch (message.type) {
       case LanMessageType.joinRequest:
-        debugPrint('👤 Jogador solicitou entrada');
-        // Host aceita automaticamente
+        debugPrint('👤 Jogador solicitou entrada: ${message.data['playerName']}');
+        // Host aguarda aprovação manual
         if (_isHost) {
-          _status = LanConnectionStatus.connected;
+          _pendingPlayerName = message.data['playerName'] as String?;
+          _status = LanConnectionStatus.waitingApproval;
           notifyListeners();
-          _initializeGameState();
         }
         break;
 
       case LanMessageType.joinAccepted:
         debugPrint('✅ Entrada aceita no jogo');
+        final opponentColor = message.data['color'] as String?;
+        if (opponentColor != null) {
+          // Define cor do guest como oposta à do host
+          _myColor = PlayerColor.values.firstWhere((c) => c.name == opponentColor);
+        }
         _status = LanConnectionStatus.connected;
         notifyListeners();
         _initializeGameState();
+        break;
+
+      case LanMessageType.joinRejected:
+        debugPrint('❌ Entrada rejeitada pelo host');
+        _disconnectController.add('rejected');
+        cleanup();
         break;
 
       case LanMessageType.gameStart:
