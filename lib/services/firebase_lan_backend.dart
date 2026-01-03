@@ -88,11 +88,13 @@ class FirebaseLanBackend implements LanBackend {
         final games = <LanGameAdvertisement>[];
 
         if (event.snapshot.value != null) {
-          final data = Map<String, dynamic>.from(event.snapshot.value as Map);
+          final data = _convertToMap(event.snapshot.value as Map);
 
           for (final entry in data.entries) {
             try {
-              final gameData = Map<String, dynamic>.from(entry.value as Map);
+              final gameData = entry.value is Map
+                  ? _convertToMap(entry.value as Map)
+                  : entry.value as Map<String, dynamic>;
 
               // Ignora jogos já em andamento ou finalizados
               if (gameData['status'] != 'waiting') continue;
@@ -183,7 +185,11 @@ class FirebaseLanBackend implements LanBackend {
     final messagesRef = _db.ref('lan_games/$_currentGameId/messages');
     _messagesSubscription = messagesRef.onChildAdded.listen((event) {
       try {
-        final data = Map<String, dynamic>.from(event.snapshot.value as Map);
+        final rawData = event.snapshot.value;
+        if (rawData == null) return;
+
+        // Converte recursivamente LinkedMap para Map<String, dynamic>
+        final data = _convertToMap(rawData as Map);
 
         // Ignora mensagens próprias
         if (data['senderId'] == _myPlayerId) return;
@@ -194,6 +200,21 @@ class FirebaseLanBackend implements LanBackend {
         debugPrint('⚠️ Erro ao processar mensagem: $e');
       }
     });
+  }
+
+  /// Converte recursivamente LinkedMap para Map<String, dynamic>
+  Map<String, dynamic> _convertToMap(Map map) {
+    final result = <String, dynamic>{};
+    map.forEach((key, value) {
+      if (value is Map) {
+        result[key.toString()] = _convertToMap(value);
+      } else if (value is List) {
+        result[key.toString()] = value.map((e) => e is Map ? _convertToMap(e) : e).toList();
+      } else {
+        result[key.toString()] = value;
+      }
+    });
+    return result;
   }
 
   void _listenForConnection() {

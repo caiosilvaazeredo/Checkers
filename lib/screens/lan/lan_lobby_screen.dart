@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../models/game_model.dart';
@@ -6,7 +7,7 @@ import '../../services/lan_game_service.dart';
 import '../../theme/app_theme.dart';
 import '../game/game_screen.dart';
 
-/// Tela de lobby LAN - Similar ao Mario Party
+/// Tela de lobby LAN - Similar ao Chess.com
 /// Permite hospedar ou entrar em jogos na rede local
 class LanLobbyScreen extends StatefulWidget {
   const LanLobbyScreen({super.key});
@@ -21,6 +22,7 @@ class _LanLobbyScreenState extends State<LanLobbyScreen>
   final TextEditingController _nameController = TextEditingController(text: 'Jogador');
   GameVariant _selectedVariant = GameVariant.american;
   bool _isHosting = false;
+  PlayerColor? _selectedColor = PlayerColor.red; // null = aleatório
 
   @override
   void initState() {
@@ -56,6 +58,11 @@ class _LanLobbyScreenState extends State<LanLobbyScreen>
         ? 'Jogador'
         : _nameController.text.trim());
     lanService.setVariant(_selectedVariant);
+
+    // Define cor (aleatório se null)
+    final hostColor = _selectedColor ??
+        (Random().nextBool() ? PlayerColor.red : PlayerColor.white);
+    lanService.setHostPreferredColor(hostColor);
 
     setState(() => _isHosting = true);
 
@@ -102,6 +109,69 @@ class _LanLobbyScreenState extends State<LanLobbyScreen>
     setState(() => _isHosting = false);
   }
 
+  Widget _buildBoardPreview(PlayerColor color) {
+    final isWhite = color == PlayerColor.white;
+    return Container(
+      width: 120,
+      height: 120,
+      decoration: BoxDecoration(
+        border: Border.all(color: AppColors.textSecondary.withOpacity(0.3), width: 2),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: GridView.builder(
+        physics: const NeverScrollableScrollPhysics(),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 8,
+        ),
+        itemCount: 64,
+        itemBuilder: (context, index) {
+          final row = index ~/ 8;
+          final col = index % 8;
+          final isDark = (row + col) % 2 == 1;
+
+          // Mostra peças nas 3 primeiras linhas (topo) e 3 últimas (bottom)
+          Widget? piece;
+          if (isDark) {
+            if (row < 3) {
+              // Peças do topo
+              piece = Container(
+                margin: const EdgeInsets.all(1),
+                decoration: BoxDecoration(
+                  color: isWhite ? Colors.white : Colors.red.shade700,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: isWhite ? Colors.grey : Colors.white,
+                    width: 0.5,
+                  ),
+                ),
+              );
+            } else if (row >= 5) {
+              // Peças do bottom
+              piece = Container(
+                margin: const EdgeInsets.all(1),
+                decoration: BoxDecoration(
+                  color: isWhite ? Colors.red.shade700 : Colors.white,
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: isWhite ? Colors.white : Colors.grey,
+                    width: 0.5,
+                  ),
+                ),
+              );
+            }
+          }
+
+          return Container(
+            decoration: BoxDecoration(
+              color: isDark ? Colors.brown.shade600 : Colors.brown.shade200,
+            ),
+            child: piece,
+          );
+        },
+      ),
+    );
+  }
+
   @override
   void dispose() {
     _animationController.dispose();
@@ -115,6 +185,7 @@ class _LanLobbyScreenState extends State<LanLobbyScreen>
   @override
   Widget build(BuildContext context) {
     final lanService = context.watch<LanGameService>();
+    final isGuest = lanService.status == LanConnectionStatus.discovering;
 
     return PopScope(
       onPopInvokedWithResult: (didPop, result) async {
@@ -133,30 +204,6 @@ class _LanLobbyScreenState extends State<LanLobbyScreen>
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Informação sobre modo não ranqueado
-                Card(
-                  color: AppColors.accent.withOpacity(0.2),
-                  child: Padding(
-                    padding: const EdgeInsets.all(12.0),
-                    child: Row(
-                      children: [
-                        Icon(Icons.info_outline, color: AppColors.accent),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Text(
-                            'Jogo casual - não afeta seu ranking',
-                            style: TextStyle(
-                              color: AppColors.accent,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-
                 // Campo de nome
                 TextField(
                   controller: _nameController,
@@ -173,7 +220,7 @@ class _LanLobbyScreenState extends State<LanLobbyScreen>
                   ),
                   maxLength: 20,
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 8),
 
                 // Seleção de variante
                 Container(
@@ -207,92 +254,43 @@ class _LanLobbyScreenState extends State<LanLobbyScreen>
                 ),
                 const SizedBox(height: 16),
 
-                // Seleção de cor (somente quando não está hospedando)
-                if (!_isHosting && lanService.status == LanConnectionStatus.disconnected)
+                // Seleção de cor - SOMENTE para host (não em modo discovering)
+                if (!_isHosting && lanService.status == LanConnectionStatus.disconnected && !isGuest)
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Escolha sua cor:',
+                        'Escolha seu lado:',
                         style: TextStyle(
                           color: AppColors.textPrimary,
-                          fontSize: 14,
+                          fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 12),
                       Row(
                         children: [
+                          // Branco
                           Expanded(
                             child: GestureDetector(
-                              onTap: () => lanService.setHostPreferredColor(PlayerColor.red),
+                              onTap: () => setState(() => _selectedColor = PlayerColor.white),
                               child: Container(
-                                padding: const EdgeInsets.all(16),
+                                padding: const EdgeInsets.all(12),
                                 decoration: BoxDecoration(
-                                  color: lanService.hostPreferredColor == PlayerColor.red
-                                      ? AppColors.accent.withOpacity(0.3)
+                                  color: _selectedColor == PlayerColor.white
+                                      ? AppColors.accent.withOpacity(0.2)
                                       : AppColors.surface,
                                   border: Border.all(
-                                    color: lanService.hostPreferredColor == PlayerColor.red
+                                    color: _selectedColor == PlayerColor.white
                                         ? AppColors.accent
-                                        : AppColors.textSecondary,
+                                        : AppColors.textSecondary.withOpacity(0.3),
                                     width: 2,
                                   ),
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                                 child: Column(
                                   children: [
-                                    Container(
-                                      width: 40,
-                                      height: 40,
-                                      decoration: BoxDecoration(
-                                        color: Colors.red,
-                                        shape: BoxShape.circle,
-                                        border: Border.all(color: Colors.white, width: 2),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 8),
-                                    const Text(
-                                      'Vermelho',
-                                      style: TextStyle(
-                                        color: AppColors.textPrimary,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: GestureDetector(
-                              onTap: () => lanService.setHostPreferredColor(PlayerColor.white),
-                              child: Container(
-                                padding: const EdgeInsets.all(16),
-                                decoration: BoxDecoration(
-                                  color: lanService.hostPreferredColor == PlayerColor.white
-                                      ? AppColors.accent.withOpacity(0.3)
-                                      : AppColors.surface,
-                                  border: Border.all(
-                                    color: lanService.hostPreferredColor == PlayerColor.white
-                                        ? AppColors.accent
-                                        : AppColors.textSecondary,
-                                    width: 2,
-                                  ),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Column(
-                                  children: [
-                                    Container(
-                                      width: 40,
-                                      height: 40,
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        shape: BoxShape.circle,
-                                        border: Border.all(color: Colors.grey, width: 2),
-                                      ),
-                                    ),
+                                    _buildBoardPreview(PlayerColor.white),
                                     const SizedBox(height: 8),
                                     const Text(
                                       'Branco',
@@ -301,12 +299,101 @@ class _LanLobbyScreenState extends State<LanLobbyScreen>
                                         fontWeight: FontWeight.bold,
                                       ),
                                     ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      '(Joga abaixo)',
+                                      style: TextStyle(
+                                        color: AppColors.textSecondary,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          // Vermelho
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () => setState(() => _selectedColor = PlayerColor.red),
+                              child: Container(
+                                padding: const EdgeInsets.all(12),
+                                decoration: BoxDecoration(
+                                  color: _selectedColor == PlayerColor.red
+                                      ? AppColors.accent.withOpacity(0.2)
+                                      : AppColors.surface,
+                                  border: Border.all(
+                                    color: _selectedColor == PlayerColor.red
+                                        ? AppColors.accent
+                                        : AppColors.textSecondary.withOpacity(0.3),
+                                    width: 2,
+                                  ),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Column(
+                                  children: [
+                                    _buildBoardPreview(PlayerColor.red),
+                                    const SizedBox(height: 8),
+                                    const Text(
+                                      'Vermelho',
+                                      style: TextStyle(
+                                        color: AppColors.textPrimary,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      '(Joga acima)',
+                                      style: TextStyle(
+                                        color: AppColors.textSecondary,
+                                        fontSize: 12,
+                                      ),
+                                    ),
                                   ],
                                 ),
                               ),
                             ),
                           ),
                         ],
+                      ),
+                      const SizedBox(height: 12),
+                      // Opção aleatória
+                      GestureDetector(
+                        onTap: () => setState(() => _selectedColor = null),
+                        child: Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: _selectedColor == null
+                                ? AppColors.accent.withOpacity(0.2)
+                                : AppColors.surface,
+                            border: Border.all(
+                              color: _selectedColor == null
+                                  ? AppColors.accent
+                                  : AppColors.textSecondary.withOpacity(0.3),
+                              width: 2,
+                            ),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.shuffle,
+                                color: _selectedColor == null ? AppColors.accent : AppColors.textPrimary,
+                              ),
+                              const SizedBox(width: 8),
+                              Text(
+                                'Aleatório',
+                                style: TextStyle(
+                                  color: AppColors.textPrimary,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                       const SizedBox(height: 16),
                     ],
@@ -370,7 +457,8 @@ class _LanLobbyScreenState extends State<LanLobbyScreen>
                   ),
 
                 // Aguardando aprovação (jogador solicitou entrada)
-                if (lanService.status == LanConnectionStatus.waitingApproval && lanService.pendingPlayerName != null)
+                if (lanService.status == LanConnectionStatus.waitingApproval &&
+                    lanService.pendingPlayerName != null)
                   Card(
                     color: AppColors.accent.withOpacity(0.2),
                     child: Padding(
@@ -496,11 +584,10 @@ class _LanLobbyScreenState extends State<LanLobbyScreen>
                       ),
                       const SizedBox(height: 8),
                       if (lanService.availableGames.isEmpty)
-                        Container(
-                          height: 200,
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 40),
                           child: Center(
                             child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
                               children: [
                                 RotationTransition(
                                   turns: _animationController,
@@ -512,19 +599,10 @@ class _LanLobbyScreenState extends State<LanLobbyScreen>
                                 ),
                                 const SizedBox(height: 16),
                                 Text(
-                                  'Procurando jogos na rede local...',
+                                  'Procurando jogos...',
                                   style: TextStyle(
                                     color: AppColors.textSecondary,
                                   ),
-                                ),
-                                const SizedBox(height: 8),
-                                Text(
-                                  'Certifique-se de estar na mesma rede',
-                                  style: TextStyle(
-                                    color: AppColors.textSecondary,
-                                    fontSize: 12,
-                                  ),
-                                  textAlign: TextAlign.center,
                                 ),
                               ],
                             ),
