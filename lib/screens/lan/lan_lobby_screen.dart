@@ -39,9 +39,7 @@ class _LanLobbyScreenState extends State<LanLobbyScreen>
   }
 
   void _checkConnection() {
-    final lanService = context.read<LanGameService>();
-
-    if (lanService.status == LanConnectionStatus.connected) {
+    if (_lanService.status == LanConnectionStatus.connected) {
       // Conectado! Navegar para tela de jogo
       if (mounted) {
         Navigator.pushReplacement(
