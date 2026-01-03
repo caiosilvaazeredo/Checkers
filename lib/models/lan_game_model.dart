@@ -116,6 +116,7 @@ enum LanConnectionStatus {
   hosting,
   discovering,
   connecting,
+  waitingApproval,  // Host aguardando aprovação de jogador
   connected,
 }
 

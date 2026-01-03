@@ -128,7 +128,7 @@ class _LanLobbyScreenState extends State<LanLobbyScreen>
           backgroundColor: AppColors.background,
         ),
         body: SafeArea(
-          child: Padding(
+          child: SingleChildScrollView(
             padding: const EdgeInsets.all(16.0),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -205,7 +205,112 @@ class _LanLobbyScreenState extends State<LanLobbyScreen>
                     },
                   ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 16),
+
+                // Seleção de cor (somente quando não está hospedando)
+                if (!_isHosting && lanService.status == LanConnectionStatus.disconnected)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Escolha sua cor:',
+                        style: TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () => lanService.setHostPreferredColor(PlayerColor.red),
+                              child: Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: lanService.hostPreferredColor == PlayerColor.red
+                                      ? AppColors.accent.withOpacity(0.3)
+                                      : AppColors.surface,
+                                  border: Border.all(
+                                    color: lanService.hostPreferredColor == PlayerColor.red
+                                        ? AppColors.accent
+                                        : AppColors.textSecondary,
+                                    width: 2,
+                                  ),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Column(
+                                  children: [
+                                    Container(
+                                      width: 40,
+                                      height: 40,
+                                      decoration: BoxDecoration(
+                                        color: Colors.red,
+                                        shape: BoxShape.circle,
+                                        border: Border.all(color: Colors.white, width: 2),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    const Text(
+                                      'Vermelho',
+                                      style: TextStyle(
+                                        color: AppColors.textPrimary,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: GestureDetector(
+                              onTap: () => lanService.setHostPreferredColor(PlayerColor.white),
+                              child: Container(
+                                padding: const EdgeInsets.all(16),
+                                decoration: BoxDecoration(
+                                  color: lanService.hostPreferredColor == PlayerColor.white
+                                      ? AppColors.accent.withOpacity(0.3)
+                                      : AppColors.surface,
+                                  border: Border.all(
+                                    color: lanService.hostPreferredColor == PlayerColor.white
+                                        ? AppColors.accent
+                                        : AppColors.textSecondary,
+                                    width: 2,
+                                  ),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Column(
+                                  children: [
+                                    Container(
+                                      width: 40,
+                                      height: 40,
+                                      decoration: BoxDecoration(
+                                        color: Colors.white,
+                                        shape: BoxShape.circle,
+                                        border: Border.all(color: Colors.grey, width: 2),
+                                      ),
+                                    ),
+                                    const SizedBox(height: 8),
+                                    const Text(
+                                      'Branco',
+                                      style: TextStyle(
+                                        color: AppColors.textPrimary,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+                    ],
+                  ),
 
                 // Botão de hospedar
                 if (!_isHosting && lanService.status == LanConnectionStatus.disconnected)
@@ -220,8 +325,8 @@ class _LanLobbyScreenState extends State<LanLobbyScreen>
                     ),
                   ),
 
-                // Status de hospedagem
-                if (_isHosting || lanService.status == LanConnectionStatus.hosting)
+                // Status de hospedagem (aguardando jogador)
+                if (lanService.status == LanConnectionStatus.hosting)
                   Card(
                     color: AppColors.surface,
                     child: Padding(
@@ -258,6 +363,72 @@ class _LanLobbyScreenState extends State<LanLobbyScreen>
                           TextButton(
                             onPressed: _cancelHosting,
                             child: const Text('Cancelar'),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                // Aguardando aprovação (jogador solicitou entrada)
+                if (lanService.status == LanConnectionStatus.waitingApproval && lanService.pendingPlayerName != null)
+                  Card(
+                    color: AppColors.accent.withOpacity(0.2),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        children: [
+                          Icon(
+                            Icons.person_add,
+                            size: 48,
+                            color: AppColors.accent,
+                          ),
+                          const SizedBox(height: 16),
+                          const Text(
+                            'Jogador quer entrar!',
+                            style: TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            lanService.pendingPlayerName!,
+                            style: TextStyle(
+                              color: AppColors.accent,
+                              fontSize: 20,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          Row(
+                            children: [
+                              Expanded(
+                                child: ElevatedButton.icon(
+                                  onPressed: () => lanService.rejectPlayer(),
+                                  icon: const Icon(Icons.close),
+                                  label: const Text('Rejeitar'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.red,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.all(16),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: ElevatedButton.icon(
+                                  onPressed: () => lanService.acceptPlayer(),
+                                  icon: const Icon(Icons.check),
+                                  label: const Text('Aceitar'),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: Colors.green,
+                                    foregroundColor: Colors.white,
+                                    padding: const EdgeInsets.all(16),
+                                  ),
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
@@ -302,105 +473,101 @@ class _LanLobbyScreenState extends State<LanLobbyScreen>
 
                 // Lista de jogos disponíveis
                 if (lanService.status == LanConnectionStatus.discovering)
-                  Expanded(
-                    child: Column(
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text(
-                              'Jogos Disponíveis',
-                              style: TextStyle(
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Jogos Disponíveis',
+                            style: TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 18,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.refresh),
+                            color: AppColors.accent,
+                            onPressed: _discoverGames,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      if (lanService.availableGames.isEmpty)
+                        Container(
+                          height: 200,
+                          child: Center(
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                RotationTransition(
+                                  turns: _animationController,
+                                  child: Icon(
+                                    Icons.wifi_find,
+                                    size: 48,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  'Procurando jogos na rede local...',
+                                  style: TextStyle(
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  'Certifique-se de estar na mesma rede',
+                                  style: TextStyle(
+                                    color: AppColors.textSecondary,
+                                    fontSize: 12,
+                                  ),
+                                  textAlign: TextAlign.center,
+                                ),
+                              ],
+                            ),
+                          ),
+                        )
+                      else
+                        ...lanService.availableGames.map((game) => Card(
+                          color: AppColors.surface,
+                          margin: const EdgeInsets.only(bottom: 8),
+                          child: ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor: AppColors.accent,
+                              child: Icon(
+                                Icons.person,
+                                color: AppColors.background,
+                              ),
+                            ),
+                            title: Text(
+                              game.hostName,
+                              style: const TextStyle(
                                 color: AppColors.textPrimary,
-                                fontSize: 18,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
-                            IconButton(
-                              icon: const Icon(Icons.refresh),
-                              color: AppColors.accent,
-                              onPressed: _discoverGames,
+                            subtitle: Text(
+                              game.variant == GameVariant.american
+                                  ? 'Damas Americanas'
+                                  : 'Damas Brasileiras',
+                              style: TextStyle(
+                                color: AppColors.textSecondary,
+                              ),
                             ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Expanded(
-                          child: lanService.availableGames.isEmpty
-                              ? Center(
-                                  child: Column(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      RotationTransition(
-                                        turns: _animationController,
-                                        child: Icon(
-                                          Icons.wifi_find,
-                                          size: 48,
-                                          color: AppColors.textSecondary,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 16),
-                                      Text(
-                                        'Procurando jogos na rede local...',
-                                        style: TextStyle(
-                                          color: AppColors.textSecondary,
-                                        ),
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        'Certifique-se de estar na mesma rede Wi-Fi',
-                                        style: TextStyle(
-                                          color: AppColors.textSecondary,
-                                          fontSize: 12,
-                                        ),
-                                        textAlign: TextAlign.center,
-                                      ),
-                                    ],
-                                  ),
-                                )
-                              : ListView.builder(
-                                  itemCount: lanService.availableGames.length,
-                                  itemBuilder: (context, index) {
-                                    final game = lanService.availableGames[index];
-                                    return Card(
-                                      color: AppColors.surface,
-                                      child: ListTile(
-                                        leading: CircleAvatar(
-                                          backgroundColor: AppColors.accent,
-                                          child: Icon(
-                                            Icons.person,
-                                            color: AppColors.background,
-                                          ),
-                                        ),
-                                        title: Text(
-                                          game.hostName,
-                                          style: const TextStyle(
-                                            color: AppColors.textPrimary,
-                                            fontWeight: FontWeight.bold,
-                                          ),
-                                        ),
-                                        subtitle: Text(
-                                          game.variant == GameVariant.american
-                                              ? 'Damas Americanas'
-                                              : 'Damas Brasileiras',
-                                          style: TextStyle(
-                                            color: AppColors.textSecondary,
-                                          ),
-                                        ),
-                                        trailing: ElevatedButton(
-                                          onPressed: () => _joinGame(game),
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: AppColors.accent,
-                                            foregroundColor: AppColors.background,
-                                          ),
-                                          child: const Text('Entrar'),
-                                        ),
-                                      ),
-                                    );
-                                  },
-                                ),
-                        ),
-                      ],
-                    ),
+                            trailing: ElevatedButton(
+                              onPressed: () => _joinGame(game),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.accent,
+                                foregroundColor: AppColors.background,
+                              ),
+                              child: const Text('Entrar'),
+                            ),
+                          ),
+                        )).toList(),
+                    ],
                   ),
               ],
             ),
